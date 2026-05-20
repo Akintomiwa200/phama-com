@@ -1,6 +1,4 @@
-import { type ClassValue, clsx } from "clsx";
-
-export function cn(...inputs: ClassValue[]) {
+export function cn(...inputs: (string | undefined | null | false)[]) {
   return inputs.filter(Boolean).join(" ");
 }
 
@@ -14,5 +12,8 @@ export function formatTime(date: Date = new Date()): string {
 }
 
 export function generateQRCode(data: string): string {
+  if (typeof window === "undefined") {
+    return `QR-${Buffer.from(data).toString("base64").slice(0, 16).toUpperCase()}`;
+  }
   return `QR-${btoa(data).slice(0, 16).toUpperCase()}`;
 }
