@@ -1,0 +1,16 @@
+[
+  {
+    "causingDrug": "Lisinopril",
+    "sideEffect": "dry cough",
+    "sideEffectPrevalence": "10-20%",
+    "prescribedForSideEffect": "Amlodipine",
+    "question": "Does the patient have Lisinopril-induced cough?"
+  },
+  {
+    "causingDrug": "Metformin",
+    "sideEffect": "diarrhea",
+    "sideEffectPrevalence": "5-10%",
+    "prescribedForSideEffect": "Loperamide",
+    "question": "Does the patient have Metformin-induced diarrhea?"
+  }
+]

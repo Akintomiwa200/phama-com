@@ -1,0 +1,51 @@
+[
+  {
+    "barcode": "123456789012",
+    "name": "Amlodipine",
+    "strength": "5mg",
+    "form": "tablet",
+    "instructions": "Take one tablet daily"
+  },
+  {
+    "barcode": "123456789013",
+    "name": "Amlodipine",
+    "strength": "10mg",
+    "form": "tablet",
+    "instructions": "Take one tablet daily"
+  },
+  {
+    "barcode": "123456789014",
+    "name": "Metformin",
+    "strength": "500mg",
+    "form": "tablet",
+    "instructions": "Take twice daily with meals"
+  },
+  {
+    "barcode": "123456789015",
+    "name": "Simvastatin",
+    "strength": "20mg",
+    "form": "tablet",
+    "instructions": "Take one tablet at bedtime"
+  },
+  {
+    "barcode": "123456789016",
+    "name": "Lisinopril",
+    "strength": "10mg",
+    "form": "tablet",
+    "instructions": "Take one tablet daily"
+  },
+  {
+    "barcode": "123456789020",
+    "name": "Artemether",
+    "strength": "20mg",
+    "form": "injection",
+    "instructions": "For intramuscular injection only"
+  },
+  {
+    "barcode": "123456789021",
+    "name": "Sterile Water",
+    "strength": "1.5mL",
+    "form": "injection",
+    "instructions": "Use as diluent for injection"
+  }
+]

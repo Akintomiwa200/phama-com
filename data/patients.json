@@ -1,0 +1,14 @@
+[
+  {
+    "id": "PT-72819",
+    "name": "Mrs. Folake E.",
+    "age": 72,
+    "currentMedications": ["Metformin", "Simvastatin", "Lisinopril"]
+  },
+  {
+    "id": "PT-72820",
+    "name": "Mr. Emmanuel O.",
+    "age": 65,
+    "currentMedications": ["Aspirin", "Atenolol"]
+  }
+]

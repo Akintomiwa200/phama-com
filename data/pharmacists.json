@@ -1,0 +1,20 @@
+[
+  {
+    "id": "PANS2024",
+    "name": "Dr. Adaobi Nnamdi",
+    "licenseNumber": "PHARM-NG-2024-001",
+    "authorized": true
+  },
+  {
+    "id": "PANS2025",
+    "name": "Dr. Chidi Okonkwo",
+    "licenseNumber": "PHARM-NG-2025-002",
+    "authorized": true
+  },
+  {
+    "id": "PANS9999",
+    "name": "Unauthorized User",
+    "licenseNumber": "INVALID",
+    "authorized": false
+  }
+]

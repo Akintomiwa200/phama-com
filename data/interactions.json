@@ -1,0 +1,23 @@
+[
+  {
+    "drugA": "Amlodipine",
+    "drugB": "Simvastatin",
+    "severity": "high",
+    "description": "High risk of muscle damage and kidney failure.",
+    "recommendation": "Contact prescriber before dispensing."
+  },
+  {
+    "drugA": "Metformin",
+    "drugB": "Lisinopril",
+    "severity": "low",
+    "description": "May increase risk of hypoglycemia.",
+    "recommendation": "Monitor blood glucose levels."
+  },
+  {
+    "drugA": "Amlodipine",
+    "drugB": "Atenolol",
+    "severity": "medium",
+    "description": "Increased risk of bradycardia.",
+    "recommendation": "Monitor heart rate regularly."
+  }
+]
