@@ -122,45 +122,6 @@ export default function ScanVerify() {
             />
           </div>
 
-          {/* Quick barcode suggestions from inventory */}
-          {rx && (() => {
-            const rxName = rx.drug.split(" ")[0];
-            const itemsForDrug = state.inventory.filter(d => d.drug.split(" ")[0] === rxName);
-            const wrongStrength = itemsForDrug.find(d => d.strength !== rx.strength);
-            const correctItem = itemsForDrug.find(d => d.strength === rx.strength);
-            return (
-              <div style={{ marginBottom: 16 }}>
-                <div className="section-label" style={{ marginBottom: 8 }}>QUICK FILL FROM INVENTORY</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {wrongStrength && (
-                    <button
-                      onClick={() => setBarcode(wrongStrength.barcode)}
-                      style={{
-                        background: "var(--red-glow)", border: "1px solid var(--red-dim)30",
-                        borderRadius: 6, padding: "8px 12px", cursor: "pointer", textAlign: "left"
-                      }}
-                    >
-                      <div style={{ fontSize: 11, color: "var(--red)" }}>WRONG STRENGTH (will fail)</div>
-                      <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{wrongStrength.barcode} — {wrongStrength.drug} {wrongStrength.strength}</div>
-                    </button>
-                  )}
-                  {correctItem && (
-                    <button
-                      onClick={() => setBarcode(correctItem.barcode)}
-                      style={{
-                        background: "var(--green-glow)", border: "1px solid var(--green)30",
-                        borderRadius: 6, padding: "8px 12px", cursor: "pointer", textAlign: "left"
-                      }}
-                    >
-                      <div style={{ fontSize: 11, color: "var(--green)" }}>CORRECT (will pass)</div>
-                      <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{correctItem.barcode} — {correctItem.drug} {correctItem.strength}</div>
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-
           <div style={{ display: "flex", gap: 8 }}>
             <button
               className="btn-primary"
