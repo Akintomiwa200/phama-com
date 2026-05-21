@@ -1,5 +1,5 @@
 {
-  "name": "pharmacy-ai-system",
+  "name": "phama-com",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,7 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "lucide-react": "^0.460.0",
+    "framer-motion": "^12.39.0",
+    "lucide-react": "^1.16.0",
+    "mongodb": "^7.2.0",
+    "nanoid": "^3.3.12",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -23,5 +26,9 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "typescript": "^5"
-  }
+  },
+  "description": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }

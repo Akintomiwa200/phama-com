@@ -1,15 +1,45 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f9fafb;
-  --foreground: #171717;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-public-sans);
+  --font-mono: var(--font-public-sans);
+  --font-display: var(--font-public-sans);
+}
+
+@theme {
+  --color-green: #059669;
+  --color-green-glow: rgba(5, 150, 105, 0.08);
+  --color-red: #dc2626;
+  --color-red-dim: rgba(220, 38, 38, 0.3);
+  --color-red-glow: rgba(220, 38, 38, 0.08);
+  --color-amber: #d97706;
+  --color-amber-glow: rgba(217, 119, 6, 0.08);
+  --color-blue: #3b82f6;
+}
+
+:root {
+  --background: #f9fafb;
+  --foreground: #171717;
+  --green: #059669;
+  --red: #dc2626;
+  --amber: #d97706;
+  --blue: #3b82f6;
+  --text: #111827;
+  --text-dim: #6b7280;
+  --text-faint: #9ca3af;
+  --surface: #ffffff;
+  --surface2: #f9fafb;
+  --border: #e5e7eb;
+  --border2: #d1d5db;
+  --bg: #f3f4f6;
+  --green-glow: rgba(5, 150, 105, 0.08);
+  --red-glow: rgba(220, 38, 38, 0.08);
+  --red-dim: rgba(220, 38, 38, 0.3);
+  --amber-glow: rgba(217, 119, 6, 0.08);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --display: var(--font-public-sans), sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,28 +50,39 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  font-family: var(--font-public-sans), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slide-in-from-bottom-4 {
-  from {
-    transform: translateY(1rem);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(1rem); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .animate-in {

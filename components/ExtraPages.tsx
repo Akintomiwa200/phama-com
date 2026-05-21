@@ -65,8 +65,9 @@ export function CompleteScreen() {
 }
 
 export function Inventory() {
-  const critical = DRUG_INVENTORY.filter(d => d.criticalStock);
-  const low = DRUG_INVENTORY.filter(d => d.lowStock && !d.criticalStock);
+  const { state } = useApp();
+  const critical = state.inventory.filter(d => d.criticalStock);
+  const low = state.inventory.filter(d => d.lowStock && !d.criticalStock);
 
   return (
     <div style={{ padding: 32, maxWidth: 1000 }}>
@@ -106,14 +107,14 @@ export function Inventory() {
             <span key={i} className="section-label">{h}</span>
           ))}
         </div>
-        {DRUG_INVENTORY.map((item, i) => {
+        {state.inventory.map((item, i) => {
           const stockColor = item.criticalStock ? "var(--red)" : item.lowStock ? "var(--amber)" : "var(--green)";
           const expSoon = new Date(item.expiry) < new Date(Date.now() + 90 * 86400000);
           return (
             <div key={i} style={{
               display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px",
               padding: "14px 20px",
-              borderBottom: i < DRUG_INVENTORY.length - 1 ? "1px solid var(--border)" : "none",
+              borderBottom: i < state.inventory.length - 1 ? "1px solid var(--border)" : "none",
               transition: "background 0.15s"
             }}
               onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}

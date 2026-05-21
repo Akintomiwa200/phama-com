@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { useApp, useAudit } from "@/lib/store";
-import { DRUG_INVENTORY } from "@/lib/database";
+import { InventoryItem } from "@/lib/database";
 import { ScanLine, CheckCircle, XCircle, AlertTriangle, ChevronRight, Barcode, RotateCcw } from "lucide-react";
 
 export default function ScanVerify() {
@@ -12,7 +12,7 @@ export default function ScanVerify() {
   const [result, setResult] = useState<"idle" | "error" | "success">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [scannedItem, setScannedItem] = useState<typeof DRUG_INVENTORY[0] | null>(null);
+  const [scannedItem, setScannedItem] = useState<InventoryItem | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const rx = state.activePrescription;
@@ -24,7 +24,7 @@ export default function ScanVerify() {
 
     await new Promise(r => setTimeout(r, 1500)); // AI processing
 
-    const item = DRUG_INVENTORY.find(d => d.barcode === barcode.trim());
+    const item = state.inventory.find(d => d.barcode === barcode.trim());
 
     if (!item) {
       setResult("error");

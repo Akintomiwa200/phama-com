@@ -22,8 +22,17 @@ export default function AuditLog() {
 
   function complete() {
     addAudit("DISPENSING_COMPLETE", `${state.activePrescription?.drug} dispensed successfully to ${state.activePatient?.name}`, "success");
-    dispatch({ type: "SET_COMPLETE", value: true });
-    dispatch({ type: "SET_STEP", step: "complete" });
+    if (state.activePrescription) {
+      dispatch({
+        type: "COMPLETE_DISPENSING",
+        rxId: state.activePrescription.rxId,
+        quantity: state.activePrescription.quantity,
+        drug: state.activePrescription.drug
+      });
+    } else {
+      dispatch({ type: "SET_COMPLETE", value: true });
+      dispatch({ type: "SET_STEP", step: "complete" });
+    }
   }
 
   return (

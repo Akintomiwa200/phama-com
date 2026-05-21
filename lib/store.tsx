@@ -1,6 +1,6 @@
 "use client";
-import React, { createContext, useContext, useReducer, ReactNode } from "react";
-import { Patient, PATIENTS, Medication } from "./database";
+import React, { createContext, useContext, useReducer, ReactNode, useEffect, useRef } from "react";
+import { Patient, PATIENTS, Medication, PRESCRIPTIONS_QUEUE, DRUG_INVENTORY, DRUG_INTERACTIONS, CASCADE_PATTERNS, PrescriptionItem, InventoryItem, DrugInteraction, CascadePattern } from "./database";
 
 export type AppStep =
   | "login"
@@ -56,6 +56,11 @@ export interface AppState {
   interactionChecked: boolean;
   cascadeChecked: boolean;
   currentRxId: string;
+  prescriptions: PrescriptionItem[];
+  inventory: InventoryItem[];
+  patients: Record<string, Patient>;
+  drugInteractions: DrugInteraction[];
+  cascadePatterns: CascadePattern[];
 }
 
 export interface AuditEntry {
@@ -89,6 +94,11 @@ const initialState: AppState = {
   interactionChecked: false,
   cascadeChecked: false,
   currentRxId: "",
+  prescriptions: PRESCRIPTIONS_QUEUE,
+  inventory: DRUG_INVENTORY,
+  patients: PATIENTS,
+  drugInteractions: DRUG_INTERACTIONS,
+  cascadePatterns: CASCADE_PATTERNS,
 };
 
 type Action =
@@ -106,7 +116,10 @@ type Action =
   | { type: "SET_INTERACTION_CHECKED"; value: boolean }
   | { type: "SET_CASCADE_CHECKED"; value: boolean }
   | { type: "LOGOUT" }
-  | { type: "NEW_PRESCRIPTION" };
+  | { type: "NEW_PRESCRIPTION" }
+  | { type: "SYNC_STATE"; state: Partial<AppState> }
+  | { type: "COMPLETE_DISPENSING"; rxId: string; quantity: number; drug: string }
+  | { type: "LOAD_DATA"; prescriptions: PrescriptionItem[]; inventory: InventoryItem[]; patients: Record<string, Patient>; drugInteractions: DrugInteraction[]; cascadePatterns: CascadePattern[] };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -117,7 +130,13 @@ function reducer(state: AppState, action: Action): AppState {
     case "SET_PATIENT":
       return { ...state, activePatient: action.patient };
     case "SET_PRESCRIPTION":
-      return { ...state, activePrescription: action.prescription };
+      return {
+        ...state,
+        activePrescription: action.prescription,
+        prescriptions: state.prescriptions.map(p =>
+          p.rxId === action.prescription.rxId ? { ...p, status: "DISPENSING" } : p
+        )
+      };
     case "ADD_ALERT":
       return { ...state, alerts: [action.alert, ...state.alerts] };
     case "DISMISS_ALERT":
@@ -137,7 +156,7 @@ function reducer(state: AppState, action: Action): AppState {
     case "SET_CASCADE_CHECKED":
       return { ...state, cascadeChecked: action.value };
     case "LOGOUT":
-      return { ...initialState };
+      return { ...initialState, prescriptions: state.prescriptions, inventory: state.inventory };
     case "NEW_PRESCRIPTION":
       return {
         ...state,
@@ -151,6 +170,35 @@ function reducer(state: AppState, action: Action): AppState {
         cascadeChecked: false,
         step: "prescription-queue",
       };
+    case "SYNC_STATE":
+      return { ...state, ...action.state };
+    case "COMPLETE_DISPENSING": {
+      const { rxId, quantity, drug } = action;
+      return {
+        ...state,
+        prescriptions: state.prescriptions.map(p =>
+          p.rxId === rxId ? { ...p, status: "DISPENSED" } : p
+        ),
+        inventory: state.inventory.map(item => {
+          if (item.drug.split(" ")[0] === drug.split(" ")[0]) {
+            const newStock = Math.max(0, item.stock - quantity);
+            return {
+              ...item,
+              stock: newStock,
+              lowStock: newStock < 50,
+              criticalStock: newStock < 10
+            };
+          }
+          return item;
+        }),
+        dispensingComplete: true,
+        step: "complete"
+      };
+    }
+    case "LOAD_DATA": {
+      const { type: _, ...data } = action;
+      return { ...state, ...data };
+    }
     default:
       return state;
   }
@@ -161,8 +209,45 @@ const AppContext = createContext<{
   dispatch: React.Dispatch<Action>;
 } | null>(null);
 
+import { initLocalRealTimeUpdates } from "./realtime";
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const isSyncingRef = useRef(false);
+  const initializedRef = useRef(false);
+
+  // Load data from MongoDB and initialize real-time
+  useEffect(() => {
+    if (typeof window === "undefined" || initializedRef.current) return;
+    initializedRef.current = true;
+
+    const loadFromMongoDB = async () => {
+      try {
+        const res = await fetch("/api/sync");
+        if (!res.ok) throw new Error("API not available");
+        const data = await res.json();
+        if (data.prescriptions || data.inventory || data.patients) {
+          dispatch({ type: "LOAD_DATA", ...data });
+        }
+      } catch {
+        console.log("MongoDB not configured, using local data");
+      }
+    };
+
+    loadFromMongoDB();
+
+    const unsubscribe = initLocalRealTimeUpdates((newState) => {
+      isSyncingRef.current = true;
+      dispatch({ type: "SYNC_STATE", state: newState });
+      setTimeout(() => { isSyncingRef.current = false; }, 50);
+    });
+
+    return () => {
+      unsubscribe();
+      initializedRef.current = false;
+    };
+  }, []);
+
   return (
     <AppContext.Provider value={{ state, dispatch }}>
       {children}
