@@ -409,5 +409,7 @@ export default function LoginPage() {
         }
       `}</style>
     </div>
+      <Footer />
+    </>
   );
 }
