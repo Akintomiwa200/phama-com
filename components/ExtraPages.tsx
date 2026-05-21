@@ -165,8 +165,9 @@ export function Reports() {
   const currentMonth = now.getMonth();
   const recentMonths = months.slice(Math.max(0, currentMonth - 4), currentMonth + 1);
   const monthlyLabels = recentMonths.length ? recentMonths : months.slice(0, 5);
-  const monthlyData = monthlyLabels.map(() => Math.floor(totalDispensed / Math.max(1, monthlyLabels.length)) + Math.floor(Math.random() * 3));
-  const maxMonthly = Math.max(...monthlyData, 1);
+  const perMonth = Math.max(1, Math.floor(totalDispensed / Math.max(1, monthlyLabels.length)));
+  const dispensedByMonth = monthlyLabels.map((_, i) => perMonth + (i === monthlyLabels.length - 1 ? totalDispensed % monthlyLabels.length : 0));
+  const maxMonthly = Math.max(...dispensedByMonth, 1);
 
   return (
     <div style={{ padding: 32, maxWidth: 900 }}>
@@ -206,12 +207,12 @@ export function Reports() {
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 140 }}>
           {monthlyLabels.map((m, i) => (
             <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-              <div style={{ fontSize: 11, color: "var(--green)" }}>{monthlyData[i]}</div>
+              <div style={{ fontSize: 11, color: "var(--green)" }}>{dispensedByMonth[i]}</div>
               <div style={{
                 width: "100%", borderRadius: "4px 4px 0 0",
                 background: i === monthlyLabels.length - 1 ? "var(--green)" : "var(--green-glow)",
                 border: "1px solid var(--green)40",
-                height: `${(monthlyData[i] / maxMonthly) * 100}px`,
+                height: `${(dispensedByMonth[i] / maxMonthly) * 100}px`,
                 transition: "height 0.5s",
               }} />
               <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{m}</div>

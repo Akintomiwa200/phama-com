@@ -1,13 +1,15 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useApp, useAudit } from "@/lib/store";
 import { FlaskConical, CheckCircle, ChevronRight, AlertTriangle, Droplets } from "lucide-react";
 
-const INJECTION_STEPS = [
-  { id: 1, label: "Scan drug vial", target: "Artemether 20mg", barcode: "567890123456", unit: "vial" },
-  { id: 2, label: "Scan diluent (mixing liquid)", target: "Sterile Water for Injection", barcode: "999000000001", unit: "ampoule" },
-  { id: 3, label: "Check volume", target: "Required 1.5mL", measured: "1.5mL", unit: "mL" },
-];
+function buildInjectionSteps(drugName: string, strength: string) {
+  return [
+    { id: 1, label: "Scan drug vial", target: `${drugName} ${strength}`, barcode: "", unit: "vial" },
+    { id: 2, label: "Scan diluent (mixing liquid)", target: "Sterile Water for Injection", barcode: "", unit: "ampoule" },
+    { id: 3, label: "Check volume", target: `Required strength: ${strength}`, measured: strength, unit: "mL" },
+  ];
+}
 
 export default function Preparation() {
   const { state, dispatch } = useApp();
@@ -18,12 +20,13 @@ export default function Preparation() {
 
   const rx = state.activePrescription;
   const isOral = rx?.route?.toLowerCase().includes("oral");
+  const injectionSteps = useMemo(() => buildInjectionSteps(rx?.drug || "", rx?.strength || ""), [rx?.drug, rx?.strength]);
 
   function checkInjStep(stepId: number) {
-    const step = INJECTION_STEPS.find(s => s.id === stepId);
+    const step = injectionSteps.find(s => s.id === stepId);
     if (!step) return;
     const input = injInputs[stepId]?.trim();
-    const pass = input && (input === step.barcode || input === step.measured || input.toLowerCase().includes("sterile"));
+    const pass = input && (input === step.measured || input.toLowerCase().includes(rx?.drug?.toLowerCase().slice(0, 4) || "sterile"));
     setInjSteps(prev => ({ ...prev, [stepId]: pass ? "pass" : "fail" }));
     addAudit(
       pass ? "PREP_STEP_PASS" : "PREP_STEP_FAIL",
@@ -32,7 +35,7 @@ export default function Preparation() {
     );
   }
 
-  const allStepsPassed = INJECTION_STEPS.every(s => injSteps[s.id] === "pass");
+  const allStepsPassed = injectionSteps.every(s => injSteps[s.id] === "pass");
 
   function proceed() {
     addAudit("PREPARATION_COMPLETE", `Preparation verified for ${rx?.drug} ${rx?.strength}`, "success");
@@ -129,7 +132,7 @@ export default function Preparation() {
               <span style={{ fontSize: 13, color: "var(--amber)" }}>Injection preparation — all steps must be verified by AI before dispensing</span>
             </div>
 
-            {INJECTION_STEPS.map((step, i) => {
+            {injectionSteps.map((step, i) => {
               const stepResult = injSteps[step.id];
               return (
                 <div key={step.id} className="card-inner" style={{
@@ -158,7 +161,7 @@ export default function Preparation() {
                   <div style={{ display: "flex", gap: 8, paddingLeft: 34 }}>
                     <input
                       className="input-field"
-                      placeholder={`Enter barcode or value (try: ${step.barcode || step.measured})`}
+                      placeholder={`Enter value (try: ${step.measured || rx?.drug})`}
                       value={injInputs[step.id] || ""}
                       onChange={e => setInjInputs(prev => ({ ...prev, [step.id]: e.target.value }))}
                       style={{ flex: 1 }}

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef } from "react";
-import { useApp, useAudit } from "@/lib/store";
+import { useApp, useAudit, syncMutation } from "@/lib/store";
 import type { InventoryItem } from "@/types";
 import { ScanLine, CheckCircle, XCircle, AlertTriangle, ChevronRight, Barcode, RotateCcw } from "lucide-react";
 
@@ -8,7 +8,6 @@ export default function ScanVerify() {
   const { state, dispatch } = useApp();
   const addAudit = useAudit();
   const [barcode, setBarcode] = useState("");
-  const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<"idle" | "error" | "success">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -17,12 +16,19 @@ export default function ScanVerify() {
 
   const rx = state.activePrescription;
 
-  async function handleScan() {
-    if (!barcode.trim() || !rx) return;
-    setScanning(true);
-    setResult("idle");
+  function addScanAttempt(attempt: { barcode: string; drug: string; strength: string; result: "error" | "success"; reason?: string }) {
+    const timestamp = new Date().toTimeString().slice(0, 8);
+    dispatch({ type: "ADD_SCAN", attempt: { ...attempt, timestamp } });
+    syncMutation("audit_log", "insertOne", {
+      time: new Date().toISOString(), action: "SCAN_" + (attempt.result === "success" ? "SUCCESS" : "FAILED"),
+      details: `${attempt.result === "success" ? "Verified" : "Failed"}: ${attempt.drug} ${attempt.strength}${attempt.reason ? " - " + attempt.reason : ""}`,
+      level: attempt.result === "success" ? "success" : "error", user: state.pharmacist?.name
+    }).catch(() => {});
+  }
 
-    await new Promise(r => setTimeout(r, 1500)); // AI processing
+  function handleScan() {
+    if (!barcode.trim() || !rx) return;
+    setResult("idle");
 
     const item = state.inventory.find(d => d.barcode === barcode.trim());
 
@@ -30,49 +36,35 @@ export default function ScanVerify() {
       setResult("error");
       setErrorMsg("Barcode not found in system. Drug not registered.");
       addAudit("SCAN_FAILED", `Unknown barcode: ${barcode}`, "error");
-      dispatch({
-        type: "ADD_SCAN",
-        attempt: { barcode, drug: "UNKNOWN", strength: "UNKNOWN", result: "error", reason: "Barcode not in database", timestamp: new Date().toTimeString().slice(0, 8) }
-      });
+      addScanAttempt({ barcode, drug: "UNKNOWN", strength: "UNKNOWN", result: "error", reason: "Barcode not in database" });
     } else if (item.drug.split(" ")[0] !== rx.drug.split(" ")[0]) {
       setResult("error");
       setErrorMsg(`WRONG DRUG. Scanned: ${item.drug} ${item.strength}. Prescribed: ${rx.drug} ${rx.strength}. Do not dispense.`);
       setScannedItem(item);
       addAudit("SCAN_WRONG_DRUG", `Wrong drug scanned: ${item.drug} vs ${rx.drug}`, "error");
-      dispatch({
-        type: "ADD_SCAN",
-        attempt: { barcode, drug: item.drug, strength: item.strength, result: "error", reason: "Wrong drug", timestamp: new Date().toTimeString().slice(0, 8) }
-      });
+      addScanAttempt({ barcode, drug: item.drug, strength: item.strength, result: "error", reason: "Wrong drug" });
     } else if (item.strength !== rx.strength) {
       setResult("error");
       setErrorMsg(`WRONG STRENGTH. Scanned: ${item.drug} ${item.strength}. Prescribed: ${rx.drug} ${rx.strength}. Clinical risk: Incorrect dosing. Retrieve correct bottle.`);
       setScannedItem(item);
       addAudit("SCAN_WRONG_STRENGTH", `Wrong strength: scanned ${item.strength}, prescribed ${rx.strength}`, "error");
-      dispatch({
-        type: "ADD_SCAN",
-        attempt: { barcode, drug: item.drug, strength: item.strength, result: "error", reason: `Wrong strength: ${item.strength} vs ${rx.strength}`, timestamp: new Date().toTimeString().slice(0, 8) }
-      });
+      addScanAttempt({ barcode, drug: item.drug, strength: item.strength, result: "error", reason: `Wrong strength: ${item.strength} vs ${rx.strength}` });
     } else {
-      // Check expiry
       const expDate = new Date(item.expiry);
       if (expDate < new Date()) {
         setResult("error");
         setErrorMsg(`EXPIRED MEDICATION. Expiry date: ${item.expiry}. Do not dispense.`);
         setScannedItem(item);
         addAudit("SCAN_EXPIRED", `Expired medication scanned: ${item.drug} exp ${item.expiry}`, "error");
+        addScanAttempt({ barcode, drug: item.drug, strength: item.strength, result: "error", reason: "Expired" });
       } else {
         setResult("success");
         setSuccessMsg(`VERIFIED. Drug name matches. Strength matches. Expiry valid (${item.expiry}). Safe to dispense.`);
         setScannedItem(item);
         addAudit("SCAN_SUCCESS", `Verified: ${item.drug} ${item.strength} Batch: ${item.batch}`, "success");
-        dispatch({
-          type: "ADD_SCAN",
-          attempt: { barcode, drug: item.drug, strength: item.strength, result: "success", timestamp: new Date().toTimeString().slice(0, 8) }
-        });
+        addScanAttempt({ barcode, drug: item.drug, strength: item.strength, result: "success" });
       }
     }
-
-    setScanning(false);
   }
 
   function reset() {
@@ -130,45 +122,53 @@ export default function ScanVerify() {
             />
           </div>
 
-          {/* Quick demo barcodes */}
-          <div style={{ marginBottom: 16 }}>
-            <div className="section-label" style={{ marginBottom: 8 }}>DEMO BARCODES</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <button
-                onClick={() => setBarcode("123456789012")}
-                style={{
-                  background: "var(--red-glow)", border: "1px solid var(--red-dim)30",
-                  borderRadius: 6, padding: "8px 12px", cursor: "pointer", textAlign: "left"
-                }}
-              >
-                <div style={{ fontSize: 11, color: "var(--red)" }}>WRONG STRENGTH (will fail)</div>
-                <div style={{ fontSize: 12, color: "var(--text-dim)" }}>123456789012 — Amlodipine 5mg</div>
-              </button>
-              <button
-                onClick={() => setBarcode("123456789013")}
-                style={{
-                  background: "var(--green-glow)", border: "1px solid var(--green)30",
-                  borderRadius: 6, padding: "8px 12px", cursor: "pointer", textAlign: "left"
-                }}
-              >
-                <div style={{ fontSize: 11, color: "var(--green)" }}>CORRECT (will pass)</div>
-                <div style={{ fontSize: 12, color: "var(--text-dim)" }}>123456789013 — Amlodipine 10mg</div>
-              </button>
-            </div>
-          </div>
+          {/* Quick barcode suggestions from inventory */}
+          {rx && (() => {
+            const rxName = rx.drug.split(" ")[0];
+            const itemsForDrug = state.inventory.filter(d => d.drug.split(" ")[0] === rxName);
+            const wrongStrength = itemsForDrug.find(d => d.strength !== rx.strength);
+            const correctItem = itemsForDrug.find(d => d.strength === rx.strength);
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div className="section-label" style={{ marginBottom: 8 }}>QUICK FILL FROM INVENTORY</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {wrongStrength && (
+                    <button
+                      onClick={() => setBarcode(wrongStrength.barcode)}
+                      style={{
+                        background: "var(--red-glow)", border: "1px solid var(--red-dim)30",
+                        borderRadius: 6, padding: "8px 12px", cursor: "pointer", textAlign: "left"
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: "var(--red)" }}>WRONG STRENGTH (will fail)</div>
+                      <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{wrongStrength.barcode} — {wrongStrength.drug} {wrongStrength.strength}</div>
+                    </button>
+                  )}
+                  {correctItem && (
+                    <button
+                      onClick={() => setBarcode(correctItem.barcode)}
+                      style={{
+                        background: "var(--green-glow)", border: "1px solid var(--green)30",
+                        borderRadius: 6, padding: "8px 12px", cursor: "pointer", textAlign: "left"
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: "var(--green)" }}>CORRECT (will pass)</div>
+                      <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{correctItem.barcode} — {correctItem.drug} {correctItem.strength}</div>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           <div style={{ display: "flex", gap: 8 }}>
             <button
               className="btn-primary"
               onClick={handleScan}
-              disabled={scanning || !barcode}
+              disabled={!barcode}
               style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
             >
-              {scanning ? (
-                <><ScanLine size={14} style={{ animation: "blink 0.5s infinite" }} /> Scanning…</>
-              ) : (
-                <><ScanLine size={14} /> Verify</>
-              )}
+              <ScanLine size={14} /> Verify
             </button>
             <button className="btn-ghost" onClick={reset} style={{ padding: "10px 14px" }}>
               <RotateCcw size={14} />
@@ -180,16 +180,7 @@ export default function ScanVerify() {
         <div className="card" style={{ padding: 24, display: "flex", flexDirection: "column" }}>
           <div className="section-label" style={{ marginBottom: 16 }}>AI VERIFICATION RESULT</div>
 
-          {scanning && (
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              <div className="scan-effect" style={{ width: 80, height: 80, borderRadius: "50%", background: "var(--green-glow)", border: "2px solid var(--green)50", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-                <ScanLine size={30} color="var(--green)" />
-              </div>
-              <div style={{ fontSize: 13, color: "var(--green)" }}>Processing scan…</div>
-            </div>
-          )}
-
-          {result === "error" && !scanning && (
+          {result === "error" && (
             <div className="animate-slide-up" style={{ flex: 1 }}>
               <div style={{
                 padding: "16px", background: "var(--red-glow)", border: "2px solid var(--red-dim)",
@@ -214,7 +205,7 @@ export default function ScanVerify() {
             </div>
           )}
 
-          {result === "success" && !scanning && (
+          {result === "success" && (
             <div className="animate-slide-up" style={{ flex: 1 }}>
               <div style={{
                 padding: "16px", background: "var(--green-glow)", border: "2px solid var(--green)50",
@@ -245,7 +236,7 @@ export default function ScanVerify() {
             </div>
           )}
 
-          {result === "idle" && !scanning && (
+          {result === "idle" && (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 13 }}>
               Awaiting barcode scan…
             </div>

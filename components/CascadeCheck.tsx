@@ -1,13 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useApp, useAudit } from "@/lib/store";
+import { useApp, useAudit, syncMutation } from "@/lib/store";
 
 import { GitBranch, AlertTriangle, CheckCircle, Activity, ChevronRight, Info } from "lucide-react";
 
 export default function CascadeCheck() {
   const { state, dispatch } = useApp();
   const addAudit = useAudit();
-  const [scanning, setScanning] = useState(true);
   const [detected, setDetected] = useState<typeof state.cascadePatterns>([]);
   const [answers, setAnswers] = useState<Record<number, "yes" | "no" | null>>({});
 
@@ -16,22 +15,21 @@ export default function CascadeCheck() {
 
   useEffect(() => {
     if (!patient || !rx) return;
-    setScanning(true);
-    setDetected([]);
     const allMeds = patient.currentMedications.map(m => m.drug);
-    const timer = setTimeout(() => {
-      const found = state.cascadePatterns.filter(c =>
-        allMeds.includes(c.causeDrug) && rx.drug.includes(c.newDrug.split(" ")[0])
-      );
-      setDetected(found);
-      setScanning(false);
-      if (found.length > 0) {
-        addAudit("CASCADE_DETECTED", `Prescribing cascade pattern detected: ${found.map(f => f.causeDrug + " → " + f.newDrug).join(", ")}`, "warning");
-      } else {
-        addAudit("CASCADE_CHECK", "No prescribing cascade patterns detected", "success");
-      }
-    }, 2000);
-    return () => clearTimeout(timer);
+    const found = state.cascadePatterns.filter(c =>
+      allMeds.includes(c.causeDrug) && rx.drug.includes(c.newDrug.split(" ")[0])
+    );
+    setDetected(found);
+    syncMutation("audit_log", "insertOne", {
+      time: new Date().toISOString(), action: "CASCADE_CHECK",
+      details: found.length > 0 ? `Cascade pattern detected: ${found.map(f => f.causeDrug + " → " + f.newDrug).join(", ")}` : "No cascade patterns detected",
+      level: found.length > 0 ? "warning" : "success", user: state.pharmacist?.name
+    }).catch(() => {});
+    if (found.length > 0) {
+      addAudit("CASCADE_DETECTED", `Prescribing cascade pattern detected: ${found.map(f => f.causeDrug + " → " + f.newDrug).join(", ")}`, "warning");
+    } else {
+      addAudit("CASCADE_CHECK", "No prescribing cascade patterns detected", "success");
+    }
   }, [patient, rx, state.cascadePatterns]);
 
   function proceed() {
@@ -64,17 +62,7 @@ export default function CascadeCheck() {
         </div>
       </div>
 
-      {scanning ? (
-        <div className="card scan-effect" style={{ padding: 48, textAlign: "center" }}>
-          <GitBranch size={32} color="var(--green)" style={{ margin: "0 auto 16px" }} />
-          <div style={{ fontSize: 14, color: "var(--green)", marginBottom: 8 }}>AI analysing prescription patterns…</div>
-          <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
-            Checking for cascade patterns in {patient?.currentMedications.length} medications
-          </div>
-        </div>
-      ) : (
-        <>
-          {detected.length > 0 ? (
+      {detected.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
               {/* Alert */}
               <div style={{
@@ -170,25 +158,23 @@ export default function CascadeCheck() {
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="card animate-slide-up" style={{ padding: 32, textAlign: "center", marginBottom: 24, borderColor: "var(--green)40" }}>
-              <CheckCircle size={40} color="var(--green)" style={{ margin: "0 auto 12px" }} />
-              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--green)", marginBottom: 8 }}>No Cascade Patterns Detected</div>
-              <div style={{ fontSize: 13, color: "var(--text-dim)" }}>
-                The new prescription does not appear to be treating a side effect of existing medications.
-              </div>
+        ) : (
+        <div>
+          <div className="card animate-slide-up" style={{ padding: 32, textAlign: "center", marginBottom: 24, borderColor: "var(--green)40" }}>
+            <CheckCircle size={40} color="var(--green)" style={{ margin: "0 auto 12px" }} />
+            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--green)", marginBottom: 8 }}>No Cascade Patterns Detected</div>
+            <div style={{ fontSize: 13, color: "var(--text-dim)" }}>
+              The new prescription does not appear to be treating a side effect of existing medications.
             </div>
-          )}
-
+          </div>
           <button
             className="btn-primary"
             onClick={proceed}
-            disabled={detected.length > 0 && !allAnswered}
             style={{ display: "flex", alignItems: "center", gap: 8 }}
           >
             Proceed to Barcode Verification <ChevronRight size={14} />
           </button>
-        </>
+        </div>
       )}
     </div>
   );

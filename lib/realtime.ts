@@ -21,7 +21,7 @@ export function initLocalRealTimeUpdates(onUpdate: Listener): () => void {
   };
 
   poll();
-  const interval = setInterval(poll, 5000);
+  const interval = setInterval(poll, 2000);
 
   return () => clearInterval(interval);
 }

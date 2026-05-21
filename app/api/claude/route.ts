@@ -1,5 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+
+async function callGemini(prompt: string): Promise<string> {
+  if (!GEMINI_API_KEY) return "";
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 800 },
+      }),
+    }
+  );
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("Gemini API error:", err);
+    return "";
+  }
+  const data = await res.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { type } = body;
@@ -36,27 +60,22 @@ No other text.`;
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    const text = await callGemini(prompt);
 
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("Anthropic API error:", err);
-      return NextResponse.json({ message: "AI service unavailable. Consult BNF and senior pharmacist." }, { status: 200 });
+    if (!text) {
+      if (type === "counselling") {
+        return NextResponse.json({
+          warnings: [
+            `Take ${body.drug} exactly as prescribed`,
+            "Do not stop medication without medical advice",
+            "Keep out of reach of children",
+            "Store below 25°C away from sunlight",
+            "Report any unusual side effects to your pharmacist",
+          ]
+        });
+      }
+      return NextResponse.json({ message: "AI service unavailable. Consult BNF and senior pharmacist." });
     }
-
-    const data = await response.json();
-    const text = data.content?.[0]?.text || "";
 
     if (type === "counselling") {
       try {
@@ -79,6 +98,6 @@ No other text.`;
     return NextResponse.json({ message: text });
   } catch (error) {
     console.error("API route error:", error);
-    return NextResponse.json({ message: "AI advisory unavailable. Please consult the BNF and a senior pharmacist." }, { status: 200 });
+    return NextResponse.json({ message: "AI advisory unavailable. Please consult the BNF and a senior pharmacist." });
   }
 }

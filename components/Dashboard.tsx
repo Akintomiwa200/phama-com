@@ -48,6 +48,10 @@ export default function Dashboard() {
     [state.prescriptions]
   );
 
+  const dispensedCount = (state.prescriptions ?? []).filter((r) => r.status === "DISPENSED").length;
+  const totalRxCount = (state.prescriptions ?? []).length;
+  const dispensePct = totalRxCount > 0 ? Math.round((dispensedCount / totalRxCount) * 100) : 0;
+
   const highRiskInteractions = useMemo(
     () =>
       (state.drugInteractions ?? []).filter(
@@ -75,10 +79,10 @@ export default function Dashboard() {
     },
     {
       label: "Dispensed",
-      value: (state.prescriptions ?? []).filter((r) => r.status === "DISPENSED").length,
+      value: dispensedCount,
       icon: CheckCircle,
       color: "var(--green)",
-      sub: "↑ 12% today",
+      sub: `${dispensePct}% of total (${totalRxCount} Rx)`,
       step: "prescription-queue",
     },
     {
