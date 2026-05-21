@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { TEAL, NAVY } from "@/components/Icon";
 import DotGrid from "@/components/ui/DotGrid";
 import Icon from "@/components/Icon";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,9 +32,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "calc(100vh - 64px)",
+    <>
+      <Navbar />
+      <div
+        style={{
+          minHeight: "calc(100vh - 64px)",
         background: "linear-gradient(135deg,#e8faf8 0%,#eef4ff 55%,#f0f9ff 100%)",
         position: "relative",
         overflow: "hidden",

@@ -4,6 +4,8 @@ import { useState, ReactNode } from "react";
 import Icon, { TEAL, NAVY } from "@/components/Icon";
 import Eyebrow from "@/components/ui/Eyebrow";
 import DotGrid from "@/components/ui/DotGrid";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface FeatureItem {
@@ -539,6 +541,7 @@ function CTA(): ReactNode {
 export default function LaborexPage(): ReactNode {
   return (
     <div style={{ fontFamily: "var(--font-public-sans), sans-serif" }}>
+      <Navbar />
       <main>
         <Hero />
         <FeaturesBar />
@@ -548,6 +551,7 @@ export default function LaborexPage(): ReactNode {
         <Testimonials />
         <CTA />
       </main>
+      <Footer />
     </div>
   );
 }
