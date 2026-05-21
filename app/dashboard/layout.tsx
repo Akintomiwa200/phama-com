@@ -49,7 +49,7 @@ export default function DashboardLayout({
         />
       </div>
 
-      <div className="flex-1 min-h-screen min-w-0 transition-all duration-300">
+      <div className="flex-1 min-h-screen min-w-0 transition-all duration-300" style={{ marginLeft: !sidebarCollapsed ? 220 : 64 }}>
         <TopBar onMenuClick={toggleSidebar} />
         <main style={{ paddingBottom: isMobile ? 72 : 0, minWidth: 0 }}>{children}</main>
       </div>

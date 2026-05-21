@@ -58,14 +58,16 @@ export default function Sidebar({
   return (
     <aside style={{
       width: !collapsed ? 220 : 64,
-      minHeight: "100vh",
+      height: "100vh",
       background: "var(--surface)",
       borderRight: "1px solid var(--border)",
       display: "flex",
       flexDirection: "column",
       transition: "width 0.3s ease",
-      position: "relative",
-      flexShrink: 0,
+      position: "fixed",
+      top: 0,
+      left: 0,
+      zIndex: 40,
     }}>
       {/* Logo */}
       <div style={{
