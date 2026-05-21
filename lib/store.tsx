@@ -1,6 +1,9 @@
 "use client";
 import React, { createContext, useContext, useReducer, ReactNode, useEffect, useRef } from "react";
-import { Patient, PATIENTS, Medication, PRESCRIPTIONS_QUEUE, DRUG_INVENTORY, DRUG_INTERACTIONS, CASCADE_PATTERNS, PrescriptionItem, InventoryItem, DrugInteraction, CascadePattern } from "./database";
+import type { Patient, DrugInteraction, CascadePattern, Pharmacist, PrescriptionItem, InventoryItem, Drug } from "@/types";
+import { getPatients, getPrescriptions, getInventory, getDrugInteractions, getCascadePatterns } from "./db";
+import pharmacistsData from "@/data/pharmacists.json";
+import drugsData from "@/data/drugs.json";
 
 export type AppStep =
   | "login"
@@ -61,6 +64,9 @@ export interface AppState {
   patients: Record<string, Patient>;
   drugInteractions: DrugInteraction[];
   cascadePatterns: CascadePattern[];
+  pharmacists: Pharmacist[];
+  drugs: Drug[];
+  dbConnected: boolean;
 }
 
 export interface AuditEntry {
@@ -80,26 +86,36 @@ export interface ScanAttempt {
   timestamp: string;
 }
 
-const initialState: AppState = {
-  pharmacist: null,
-  step: "login",
-  activePatient: null,
-  activePrescription: null,
-  alerts: [],
-  auditLog: [],
-  scanAttempts: [],
-  labelGenerated: false,
-  dispensingComplete: false,
-  sidebarOpen: true,
-  interactionChecked: false,
-  cascadeChecked: false,
-  currentRxId: "",
-  prescriptions: PRESCRIPTIONS_QUEUE,
-  inventory: DRUG_INVENTORY,
-  patients: PATIENTS,
-  drugInteractions: DRUG_INTERACTIONS,
-  cascadePatterns: CASCADE_PATTERNS,
-};
+function buildInitialState(): AppState {
+  const patientsArr = getPatients();
+  const patientsMap: Record<string, Patient> = {};
+  for (const p of patientsArr) {
+    patientsMap[p.id] = p;
+  }
+  return {
+    pharmacist: null,
+    step: "login",
+    activePatient: null,
+    activePrescription: null,
+    alerts: [],
+    auditLog: [],
+    scanAttempts: [],
+    labelGenerated: false,
+    dispensingComplete: false,
+    sidebarOpen: true,
+    interactionChecked: false,
+    cascadeChecked: false,
+    currentRxId: "",
+    prescriptions: getPrescriptions(),
+    inventory: getInventory(),
+    patients: patientsMap,
+    drugInteractions: getDrugInteractions(),
+    cascadePatterns: getCascadePatterns(),
+    pharmacists: pharmacistsData as Pharmacist[],
+    drugs: drugsData as Drug[],
+    dbConnected: false,
+  };
+}
 
 type Action =
   | { type: "LOGIN"; pharmacist: AppState["pharmacist"] }
@@ -119,7 +135,7 @@ type Action =
   | { type: "NEW_PRESCRIPTION" }
   | { type: "SYNC_STATE"; state: Partial<AppState> }
   | { type: "COMPLETE_DISPENSING"; rxId: string; quantity: number; drug: string }
-  | { type: "LOAD_DATA"; prescriptions: PrescriptionItem[]; inventory: InventoryItem[]; patients: Record<string, Patient>; drugInteractions: DrugInteraction[]; cascadePatterns: CascadePattern[] };
+  | { type: "LOAD_DATA"; prescriptions?: PrescriptionItem[]; inventory?: InventoryItem[]; patients?: Record<string, Patient>; drugInteractions?: DrugInteraction[]; cascadePatterns?: CascadePattern[]; pharmacists?: Pharmacist[]; drugs?: Drug[] };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -156,7 +172,7 @@ function reducer(state: AppState, action: Action): AppState {
     case "SET_CASCADE_CHECKED":
       return { ...state, cascadeChecked: action.value };
     case "LOGOUT":
-      return { ...initialState, prescriptions: state.prescriptions, inventory: state.inventory };
+      return { ...buildInitialState(), prescriptions: state.prescriptions, inventory: state.inventory };
     case "NEW_PRESCRIPTION":
       return {
         ...state,
@@ -197,7 +213,7 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "LOAD_DATA": {
       const { type: _, ...data } = action;
-      return { ...state, ...data };
+      return { ...state, ...data, dbConnected: true };
     }
     default:
       return state;
@@ -212,29 +228,43 @@ const AppContext = createContext<{
 import { initLocalRealTimeUpdates } from "./realtime";
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, undefined, buildInitialState);
   const isSyncingRef = useRef(false);
   const initializedRef = useRef(false);
+  const seededRef = useRef(false);
 
-  // Load data from MongoDB and initialize real-time
   useEffect(() => {
     if (typeof window === "undefined" || initializedRef.current) return;
     initializedRef.current = true;
 
-    const loadFromMongoDB = async () => {
+    const initFromMongoDB = async () => {
       try {
-        const res = await fetch("/api/sync");
+        let res = await fetch("/api/sync");
         if (!res.ok) throw new Error("API not available");
-        const data = await res.json();
+        let data = await res.json();
+
+        // Auto-seed if MongoDB is empty
+        const hasData = data.patients && Object.keys(data.patients).length > 0;
+        if (!hasData && !seededRef.current) {
+          seededRef.current = true;
+          try {
+            await fetch("/api/seed", { method: "POST" });
+            res = await fetch("/api/sync");
+            data = await res.json();
+          } catch {
+            console.log("Seed failed, using local data");
+          }
+        }
+
         if (data.prescriptions || data.inventory || data.patients) {
           dispatch({ type: "LOAD_DATA", ...data });
         }
       } catch {
-        console.log("MongoDB not configured, using local data");
+        console.log("MongoDB not available, using local data files");
       }
     };
 
-    loadFromMongoDB();
+    initFromMongoDB();
 
     const unsubscribe = initLocalRealTimeUpdates((newState) => {
       isSyncingRef.current = true;
@@ -272,4 +302,78 @@ export function useAudit() {
     });
   };
   return addAudit;
+}
+
+export async function syncMutation(
+  collection: string,
+  operation: string,
+  data?: any,
+  query?: any
+) {
+  try {
+    await fetch("/api/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collection, operation, data, query }),
+    });
+  } catch {
+    console.warn("Sync write failed — MongoDB may be offline");
+  }
+}
+
+export function useMutations() {
+  const { state, dispatch } = useApp();
+  const audit = useAudit();
+
+  const completeDispensing = async (rxId: string, quantity: number, drug: string) => {
+    dispatch({ type: "COMPLETE_DISPENSING", rxId, quantity, drug });
+    await syncMutation("prescriptions", "updateOne", { status: "DISPENSED" }, { rxId });
+    audit("Dispensing Complete", `Rx ${rxId}: ${drug} ${quantity}`, "success");
+  };
+
+  const setPatient = async (patient: Patient) => {
+    dispatch({ type: "SET_PATIENT", patient });
+  };
+
+  const setPrescription = async (p: ActivePrescription) => {
+    dispatch({ type: "SET_PRESCRIPTION", prescription: p });
+    await syncMutation("prescriptions", "updateOne", { status: "DISPENSING" }, { rxId: p.rxId });
+    audit("Prescription Selected", `Rx ${p.rxId}: ${p.drug}`, "info");
+  };
+
+  const updateInventory = async (barcode: string, updates: Partial<InventoryItem>) => {
+    dispatch({ type: "SYNC_STATE", state: { inventory: state.inventory.map(item => item.barcode === barcode ? { ...item, ...updates } : item) } });
+    await syncMutation("inventory", "updateOne", updates, { barcode });
+  };
+
+  const updatePrescription = async (rxId: string, updates: Partial<PrescriptionItem>) => {
+    dispatch({ type: "SYNC_STATE", state: { prescriptions: state.prescriptions.map(p => p.rxId === rxId ? { ...p, ...updates } : p) } });
+    await syncMutation("prescriptions", "updateOne", updates, { rxId });
+  };
+
+  const updatePatient = async (patientId: string, updates: Partial<Patient>) => {
+    const patient = state.patients[patientId];
+    if (!patient) return;
+    const updated = { ...patient, ...updates };
+    dispatch({ type: "SYNC_STATE", state: { patients: { ...state.patients, [patientId]: updated } } });
+    await syncMutation("patients", "replaceOne", updated, { id: patientId });
+  };
+
+  const addPrescription = async (prescription: PrescriptionItem) => {
+    dispatch({ type: "SYNC_STATE", state: { prescriptions: [...state.prescriptions, prescription] } });
+    await syncMutation("prescriptions", "insertOne", prescription);
+    audit("New Prescription", `Rx ${prescription.rxId}: ${prescription.drug}`, "info");
+  };
+
+  const addPatient = async (patient: Patient) => {
+    dispatch({ type: "SYNC_STATE", state: { patients: { ...state.patients, [patient.id]: patient } } });
+    await syncMutation("patients", "insertOne", patient);
+    audit("New Patient", `${patient.name} (${patient.id})`, "info");
+  };
+
+  return {
+    completeDispensing, setPatient, setPrescription,
+    updateInventory, updatePrescription, updatePatient,
+    addPrescription, addPatient,
+  };
 }

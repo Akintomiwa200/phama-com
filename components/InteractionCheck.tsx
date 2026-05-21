@@ -1,14 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useApp, useAudit } from "@/lib/store";
-import { DRUG_INTERACTIONS } from "@/lib/database";
+
 import { AlertTriangle, CheckCircle, Activity, ChevronRight, BookOpen, Phone } from "lucide-react";
 
 export default function InteractionCheck() {
   const { state, dispatch } = useApp();
   const addAudit = useAudit();
   const [scanning, setScanning] = useState(true);
-  const [found, setFound] = useState<typeof DRUG_INTERACTIONS>([]);
+  const [found, setFound] = useState<typeof state.drugInteractions>([]);
   const [step, setStep] = useState(0);
   const [acknowledged, setAcknowledged] = useState(false);
   const [aiComment, setAiComment] = useState("");
@@ -19,11 +19,12 @@ export default function InteractionCheck() {
 
   useEffect(() => {
     if (!patient || !rx) return;
-    // Simulate AI scanning
+    setScanning(true);
+    setFound([]);
+    const allMeds = patient.currentMedications.map(m => m.drug);
+    const newDrug = rx.drug;
     const timer = setTimeout(() => {
-      const allMeds = patient.currentMedications.map(m => m.drug);
-      const newDrug = rx.drug;
-      const interactions = DRUG_INTERACTIONS.filter(i =>
+      const interactions = state.drugInteractions.filter(i =>
         (i.drug1 === newDrug && allMeds.includes(i.drug2)) ||
         (i.drug2 === newDrug && allMeds.includes(i.drug1))
       );
@@ -36,7 +37,7 @@ export default function InteractionCheck() {
       }
     }, 2500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [patient, rx, state.drugInteractions]);
 
   async function getAIAdvice() {
     if (!rx || !patient || found.length === 0) return;

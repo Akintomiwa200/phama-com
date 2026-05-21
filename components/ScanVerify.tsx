@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { useApp, useAudit } from "@/lib/store";
-import { InventoryItem } from "@/lib/database";
+import type { InventoryItem } from "@/types";
 import { ScanLine, CheckCircle, XCircle, AlertTriangle, ChevronRight, Barcode, RotateCcw } from "lucide-react";
 
 export default function ScanVerify() {

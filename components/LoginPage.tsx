@@ -1,11 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useApp, useAudit } from "@/lib/store";
-import { PHARMACISTS } from "@/lib/database";
 import { Shield, Eye, EyeOff, AlertCircle, Activity } from "lucide-react";
 
 export default function LoginPage() {
-  const { dispatch } = useApp();
+  const { state, dispatch } = useApp();
   const addAudit = useAudit();
   const [pharmacistId, setPharmacistId] = useState("");
   const [password, setPassword] = useState("");
@@ -25,13 +24,13 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     await new Promise(r => setTimeout(r, 1200));
-    const found = PHARMACISTS.find(p => p.id === pharmacistId.toUpperCase());
+    const found = state.pharmacists.find(p => p.id === pharmacistId.toUpperCase());
     if (!found || password.length < 4) {
       setError("Invalid credentials. Access denied.");
       setLoading(false);
       return;
     }
-    dispatch({ type: "LOGIN", pharmacist: { id: found.id, name: found.name, role: found.role } });
+    dispatch({ type: "LOGIN", pharmacist: { id: found.id, name: found.name, role: found.authorized ? "Pharmacist" : "Staff" } });
     addAudit("LOGIN", `${found.name} authenticated successfully`, "success");
     setLoading(false);
   }
@@ -159,7 +158,7 @@ export default function LoginPage() {
           {/* Demo credentials */}
           <div style={{ marginTop: 24, padding: 14, background: "var(--bg)", borderRadius: 6, border: "1px solid var(--border)" }}>
             <div className="section-label" style={{ marginBottom: 8 }}>DEMO CREDENTIALS</div>
-            {PHARMACISTS.map(p => (
+            {state.pharmacists.map(p => (
               <button
                 key={p.id}
                 onClick={() => { setPharmacistId(p.id); setPassword("password123"); }}
@@ -173,7 +172,7 @@ export default function LoginPage() {
                 onMouseLeave={e => (e.currentTarget.style.color = "var(--text-dim)")}
               >
                 <span style={{ color: "var(--green)", marginRight: 8 }}>{p.id}</span>
-                {p.name} — {p.role}
+                {p.name} — {p.id}
               </button>
             ))}
           </div>

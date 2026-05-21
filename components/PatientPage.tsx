@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import { useApp, useAudit } from "@/lib/store";
-import { PATIENTS, type Patient } from "@/lib/database";
+import type { Patient } from "@/types";
 
 type Tab = "overview" | "medications" | "lab-reports" | "history";
 
@@ -223,7 +223,7 @@ export default function PatientPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [filterWard, setFilterWard] = useState<string>("ALL");
 
-  const allPatients = useMemo(() => Object.values(PATIENTS), []);
+  const allPatients = useMemo(() => Object.values(state.patients), [state.patients]);
 
   const wards = useMemo(() => {
     const w = new Set(allPatients.map((p) => p.ward));

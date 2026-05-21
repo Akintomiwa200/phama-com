@@ -7,28 +7,42 @@ import DotGrid from "@/components/ui/DotGrid";
 import Icon from "@/components/Icon";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import { useApp } from "@/lib/store";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { dispatch } = useApp();
   const [id, setId] = useState("");
   const [status, setStatus] = useState<"idle" | "checking" | "success" | "error">("idle");
   const [pharmacistName, setPharmacistName] = useState("");
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!id.trim()) return;
     setStatus("checking");
 
-    setTimeout(() => {
-      if (id.trim() === "PANS2024") {
-        setStatus("success");
-        setPharmacistName("Dr. Adaobi Nnamdi");
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 1500);
-      } else {
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id.trim() }),
+      });
+
+      if (!res.ok) {
         setStatus("error");
+        return;
       }
-    }, 1200);
+
+      const pharmacist = await res.json();
+      setStatus("success");
+      setPharmacistName(pharmacist.name);
+      dispatch({ type: "LOGIN", pharmacist });
+
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1500);
+    } catch {
+      setStatus("error");
+    }
   };
 
   return (

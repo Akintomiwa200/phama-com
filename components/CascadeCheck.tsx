@@ -1,24 +1,26 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useApp, useAudit } from "@/lib/store";
-import { CASCADE_PATTERNS } from "@/lib/database";
+
 import { GitBranch, AlertTriangle, CheckCircle, Activity, ChevronRight, Info } from "lucide-react";
 
 export default function CascadeCheck() {
   const { state, dispatch } = useApp();
   const addAudit = useAudit();
   const [scanning, setScanning] = useState(true);
-  const [detected, setDetected] = useState<typeof CASCADE_PATTERNS>([]);
+  const [detected, setDetected] = useState<typeof state.cascadePatterns>([]);
   const [answers, setAnswers] = useState<Record<number, "yes" | "no" | null>>({});
 
   const patient = state.activePatient;
   const rx = state.activePrescription;
 
   useEffect(() => {
+    if (!patient || !rx) return;
+    setScanning(true);
+    setDetected([]);
+    const allMeds = patient.currentMedications.map(m => m.drug);
     const timer = setTimeout(() => {
-      if (!patient || !rx) return;
-      const allMeds = patient.currentMedications.map(m => m.drug);
-      const found = CASCADE_PATTERNS.filter(c =>
+      const found = state.cascadePatterns.filter(c =>
         allMeds.includes(c.causeDrug) && rx.drug.includes(c.newDrug.split(" ")[0])
       );
       setDetected(found);
@@ -30,7 +32,7 @@ export default function CascadeCheck() {
       }
     }, 2000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [patient, rx, state.cascadePatterns]);
 
   function proceed() {
     const answeredAll = detected.every((_, i) => answers[i] !== null && answers[i] !== undefined);

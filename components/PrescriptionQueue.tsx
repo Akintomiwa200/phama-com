@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useApp, useAudit } from "@/lib/store";
-import { PATIENTS } from "@/lib/database";
+
 import { Search, Filter, ChevronRight, Clock, AlertTriangle, CheckCircle, User, Pill, Loader2 } from "lucide-react";
 
 export default function PrescriptionQueue() {
@@ -21,7 +21,7 @@ export default function PrescriptionQueue() {
   });
 
   function handleSelect(rx: typeof state.prescriptions[0]) {
-    const patient = PATIENTS[rx.patientId];
+    const patient = state.patients[rx.patientId];
     if (patient) {
       dispatch({ type: "SET_PATIENT", patient });
       dispatch({

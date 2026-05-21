@@ -5,11 +5,42 @@ export interface Pharmacist {
   authorized: boolean;
 }
 
+export interface Medication {
+  drug: string; dose: string; frequency: string; route: string; since: string;
+}
+
+export interface Vitals {
+  bp: string; hr: number; temp: number; spo2: number; weight: number; date: string;
+}
+
+export interface LabReport {
+  date: string; test: string; result: string; referenceRange: string; status: "normal" | "abnormal" | "critical";
+}
+
+export interface MedicalRecord {
+  date: string; event: string; details: string; type: "admission" | "surgery" | "diagnosis" | "vaccination" | "visit";
+}
+
+export interface PrescriptionRecord {
+  date: string; drug: string; dose: string; frequency: string; duration: string; prescriber: string; status: "completed" | "discontinued" | "active";
+}
+
 export interface Patient {
   id: string;
   name: string;
   age: number;
-  currentMedications: string[];
+  gender: string;
+  bloodType: string;
+  height: number;
+  ward: string;
+  bed: string;
+  allergies: string[];
+  conditions: string[];
+  currentMedications: Medication[];
+  recentVitals: Vitals;
+  labReports: LabReport[];
+  medicalHistory: MedicalRecord[];
+  prescriptionHistory: PrescriptionRecord[];
 }
 
 export interface Drug {
@@ -18,6 +49,12 @@ export interface Drug {
   strength: string;
   form: "tablet" | "capsule" | "injection" | "syrup";
   instructions: string;
+}
+
+export interface DrugInteraction {
+  drug1: string; drug2: string;
+  severity: "HIGH" | "MODERATE" | "LOW" | "CONTRAINDICATED";
+  effect: string; mechanism: string; action: string; references: string;
 }
 
 export interface Interaction {
@@ -29,10 +66,11 @@ export interface Interaction {
 }
 
 export interface CascadePattern {
-  causingDrug: string;
+  causeDrug: string;
   sideEffect: string;
-  prescribedForSideEffect: string;
-  question: string;
+  newDrug: string;
+  cascadeRisk: string;
+  recommendation: string;
 }
 
 export interface AuditEntry {
@@ -43,11 +81,18 @@ export interface AuditEntry {
   patientId?: string;
 }
 
-export interface Prescription {
-  patientId: string;
-  drugBarcode: string;
-  quantity: number;
-  date: string;
+export interface PrescriptionItem {
+  rxId: string; patientId: string; patientName: string;
+  drug: string; strength: string; quantity: number;
+  frequency: string; route: string;
+  prescriber: string; ward: string;
+  priority: string; status: string; time: string;
+}
+
+export interface InventoryItem {
+  barcode: string; drug: string; strength: string; form: string;
+  stock: number; expiry: string; batch: string;
+  lowStock?: boolean; criticalStock?: boolean;
 }
 
 export interface ScanResult {

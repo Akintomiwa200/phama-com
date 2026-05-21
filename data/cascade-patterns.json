@@ -1,16 +1,37 @@
 [
   {
-    "causingDrug": "Lisinopril",
-    "sideEffect": "dry cough",
-    "sideEffectPrevalence": "10-20%",
-    "prescribedForSideEffect": "Amlodipine",
-    "question": "Does the patient have Lisinopril-induced cough?"
+    "causeDrug": "Lisinopril",
+    "sideEffect": "Dry cough (10-20% of patients)",
+    "newDrug": "Amlodipine",
+    "cascadeRisk": "Amlodipine is sometimes added for blood pressure control when Lisinopril cough occurs, instead of switching to an ARB.",
+    "recommendation": "Confirm with prescriber: Does patient have Lisinopril-induced cough? If yes, consider switching to Losartan (ARB) rather than adding Amlodipine."
   },
   {
-    "causingDrug": "Metformin",
-    "sideEffect": "diarrhea",
-    "sideEffectPrevalence": "5-10%",
-    "prescribedForSideEffect": "Loperamide",
-    "question": "Does the patient have Metformin-induced diarrhea?"
+    "causeDrug": "NSAIDs",
+    "sideEffect": "GI irritation / peptic ulcer",
+    "newDrug": "Omeprazole",
+    "cascadeRisk": "PPI prescribed to treat NSAID-induced GI side effects rather than stopping the NSAID",
+    "recommendation": "Review necessity of NSAID. Consider Paracetamol if appropriate. If NSAID essential, prescribe PPI with shortest effective duration."
+  },
+  {
+    "causeDrug": "Thiazide diuretics",
+    "sideEffect": "Gout attacks",
+    "newDrug": "Allopurinol",
+    "cascadeRisk": "Allopurinol prescribed for gout triggered by thiazide diuretics",
+    "recommendation": "Consider switching diuretic class. Review whether thiazide is the most appropriate agent."
+  },
+  {
+    "causeDrug": "Metformin",
+    "sideEffect": "GI intolerance / diarrhoea",
+    "newDrug": "Metformin MR (modified release)",
+    "cascadeRisk": "Modified release metformin prescribed for GI side effects rather than dose titration or review of carbohydrate intake",
+    "recommendation": "Titrate standard metformin gradually over 4 weeks before switching to MR formulation."
+  },
+  {
+    "causeDrug": "Salmeterol (LABA)",
+    "sideEffect": "Inadequate asthma control",
+    "newDrug": "Montelukast",
+    "cascadeRisk": "Montelukast added for persisting symptoms without checking inhaler technique or adherence",
+    "recommendation": "Assess inhaler technique and adherence before adding third-line therapy. Consider stepping up ICS dose."
   }
 ]

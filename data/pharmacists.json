@@ -12,6 +12,24 @@
     "authorized": true
   },
   {
+    "id": "PANS2026",
+    "name": "Dr. Emeka Nwosu",
+    "licenseNumber": "PHARM-NG-2026-003",
+    "authorized": true
+  },
+  {
+    "id": "PANS2027",
+    "name": "Dr. Fatima Bello",
+    "licenseNumber": "PHARM-NG-2027-004",
+    "authorized": true
+  },
+  {
+    "id": "PANS2028",
+    "name": "Dr. Kunle Hassan",
+    "licenseNumber": "PHARM-NG-2028-005",
+    "authorized": true
+  },
+  {
     "id": "PANS9999",
     "name": "Unauthorized User",
     "licenseNumber": "INVALID",

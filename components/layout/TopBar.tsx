@@ -84,32 +84,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
       read: !!alert.dismissed,
     }));
     
-    const baseNotifications: Notification[] = [
-      {
-        id: "base-1",
-        title: "Urgent Prescription",
-        message: "Critical order waiting for review",
-        type: "warning",
-        timestamp: new Date(),
-        read: false,
-      },
-      {
-        id: "base-2",
-        title: "Inventory Warning",
-        message: "Amoxicillin stock below threshold",
-        type: "error",
-        timestamp: new Date(Date.now() - 1000 * 60 * 30),
-        read: false,
-      },
-      {
-        id: "base-3",
-        title: "Sync Successful",
-        message: "Audit logs synced successfully",
-        type: "success",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60),
-        read: true,
-      },
-    ];
+    const baseNotifications: Notification[] = [];
 
     const formattedBase = baseNotifications.map(n => ({
       ...n,

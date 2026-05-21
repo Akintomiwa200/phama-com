@@ -22,46 +22,18 @@
       "patientId": "PT-72819"
     },
     {
-      "timestamp": "09:16:45",
-      "action": "Prescriber updated prescription",
-      "details": "Dose adjusted after consultation",
+      "timestamp": "09:16:40",
+      "action": "Prescription dispensed",
+      "details": "Amlodipine 10mg — 30 tablets",
       "pharmacistId": "PANS2024",
       "patientId": "PT-72819"
     },
     {
-      "timestamp": "09:17:30",
-      "action": "Cascade check",
-      "details": "No cough confirmed by prescriber",
+      "timestamp": "09:17:00",
+      "action": "Pharmacist logged out",
+      "details": "ID: PANS2024",
       "pharmacistId": "PANS2024",
-      "patientId": "PT-72819"
-    },
-    {
-      "timestamp": "09:19:15",
-      "action": "Scan failed",
-      "details": "Wrong strength (5mg instead of 10mg)",
-      "pharmacistId": "PANS2024",
-      "patientId": "PT-72819"
-    },
-    {
-      "timestamp": "09:19:30",
-      "action": "Scan success",
-      "details": "Verified: Amlodipine 10mg",
-      "pharmacistId": "PANS2024",
-      "patientId": "PT-72819"
-    },
-    {
-      "timestamp": "09:20:30",
-      "action": "Label generated",
-      "details": "Auto-printed for Amlodipine 10mg",
-      "pharmacistId": "PANS2024",
-      "patientId": "PT-72819"
-    },
-    {
-      "timestamp": "09:21:00",
-      "action": "Dispensing complete",
-      "details": "All safety checks passed",
-      "pharmacistId": "PANS2024",
-      "patientId": "PT-72819"
+      "patientId": ""
     }
   ]
 }

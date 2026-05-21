@@ -75,7 +75,7 @@ export default function Dashboard() {
     },
     {
       label: "Dispensed",
-      value: 47 + (state.prescriptions ?? []).filter((r) => r.status === "DISPENSED").length,
+      value: (state.prescriptions ?? []).filter((r) => r.status === "DISPENSED").length,
       icon: CheckCircle,
       color: "var(--green)",
       sub: "↑ 12% today",
@@ -732,33 +732,38 @@ export default function Dashboard() {
               style={{ marginBottom: 16 }}
             >
               SYSTEM HEALTH
+              {state.dbConnected && (
+                <span style={{ marginLeft: 8, fontSize: 9, color: "var(--green)" }}>
+                  ● LIVE
+                </span>
+              )}
             </div>
 
             {[
               {
                 label: "Drug Database",
-                status: "ONLINE",
-                ok: true,
+                status: state.dbConnected ? "ONLINE" : "LOCAL",
+                ok: state.dbConnected,
               },
               {
                 label: "Barcode Scanner",
-                status: "CONNECTED",
+                status: state.scanAttempts.length > 0 ? "CONNECTED" : "STANDBY",
                 ok: true,
               },
               {
                 label: "Label Printer",
-                status: "READY",
+                status: state.labelGenerated ? "ACTIVE" : "READY",
                 ok: true,
               },
               {
                 label: "Audit System",
-                status: "RECORDING",
+                status: state.auditLog.length > 0 ? "RECORDING" : "STANDBY",
                 ok: true,
               },
               {
                 label: "AI Engine",
-                status: "ACTIVE",
-                ok: true,
+                status: state.drugInteractions.length > 0 ? "ACTIVE" : "STANDBY",
+                ok: state.drugInteractions.length > 0,
               },
             ].map((item, i) => (
               <div
