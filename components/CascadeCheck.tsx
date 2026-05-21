@@ -37,6 +37,10 @@ export default function CascadeCheck() {
     if (detected.length > 0 && !answeredAll) return;
     dispatch({ type: "SET_CASCADE_CHECKED", value: true });
     addAudit("CASCADE_ACKNOWLEDGED", "Prescribing cascade review completed by pharmacist", "info");
+    syncMutation("audit_log", "insertOne", {
+      time: new Date().toISOString(), action: "CASCADE_ACKNOWLEDGED",
+      details: "Prescribing cascade review completed", level: "info", user: state.pharmacist?.name
+    }).catch(() => {});
     dispatch({ type: "SET_STEP", step: "scan-verify" });
   }
 
@@ -157,7 +161,15 @@ export default function CascadeCheck() {
                   </div>
                 </div>
               ))}
-            </div>
+            <button
+              className="btn-primary"
+              onClick={proceed}
+              disabled={!allAnswered}
+              style={{ display: "flex", alignItems: "center", gap: 8 }}
+            >
+              Proceed to Barcode Verification <ChevronRight size={14} />
+            </button>
+          </div>
         ) : (
         <div>
           <div className="card animate-slide-up" style={{ padding: 32, textAlign: "center", marginBottom: 24, borderColor: "var(--green)40" }}>
