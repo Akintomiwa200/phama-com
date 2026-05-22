@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Package,
   Users,
+  UserCircle,
   BarChart3,
   Settings,
 } from "lucide-react";
@@ -16,8 +17,9 @@ const MOBILE_NAV_ITEMS = [
   { name: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/dashboard" },
   { name: "Prescriptions", icon: <ClipboardList size={20} />, path: "/dashboard/prescription-queue" },
   { name: "Inventory", icon: <Package size={20} />, path: "/dashboard/inventory" },
-  { name: "Patients", icon: <Users size={20} />, path: "/dashboard/patients" },
+  { name: "Patients", icon: <Users size={20} />, path: "/dashboard/patient-review" },
   { name: "Reports", icon: <BarChart3 size={20} />, path: "/dashboard/reports" },
+  { name: "Profile", icon: <UserCircle size={20} />, path: "/dashboard/profile" },
   { name: "Settings", icon: <Settings size={20} />, path: "/dashboard/settings" },
 ];
 

@@ -1,38 +1,51 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useApp, useAudit } from "@/lib/store";
-import { Shield, Eye, EyeOff, AlertCircle, Activity } from "lucide-react";
+import { Shield, AlertCircle, Activity } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const { state, dispatch } = useApp();
+  const router = useRouter();
+  const { dispatch } = useApp();
   const addAudit = useAudit();
   const [pharmacistId, setPharmacistId] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const t = setInterval(() => setTick(n => n + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-
   const now = new Date();
 
   async function handleLogin() {
     setError("");
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
-    const found = state.pharmacists.find(p => p.id === pharmacistId.toUpperCase());
-    if (!found || password.length < 4) {
-      setError("Invalid credentials. Access denied.");
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pharmacistId.toUpperCase() }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Invalid practitioner ID. Access denied.");
+        setLoading(false);
+        return;
+      }
+
+      dispatch({
+        type: "LOGIN",
+        pharmacist: {
+          id: data.id,
+          name: data.name,
+          role: data.role,
+          licenseNumber: data.licenseNumber,
+        },
+      });
+      addAudit("LOGIN", `${data.name} authenticated successfully`, "success");
+      router.push("/dashboard");
+    } catch {
+      setError("Cannot reach authentication server. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-    dispatch({ type: "LOGIN", pharmacist: { id: found.id, name: found.name, role: found.authorized ? "Pharmacist" : "Staff" } });
-    addAudit("LOGIN", `${found.name} authenticated successfully`, "success");
-    setLoading(false);
   }
 
   return (
@@ -101,32 +114,6 @@ export default function LoginPage() {
               />
             </div>
 
-            <div>
-              <label className="section-label" style={{ display: "block", marginBottom: 6 }}>
-                Password
-              </label>
-              <div style={{ position: "relative" }}>
-                <input
-                  className="input-field"
-                  type={showPass ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleLogin()}
-                  style={{ paddingRight: 44 }}
-                />
-                <button
-                  onClick={() => setShowPass(v => !v)}
-                  style={{
-                    position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
-                    background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer"
-                  }}
-                >
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-
             {error && (
               <div className="animate-slide-up" style={{
                 background: "var(--red-glow)", border: "1px solid var(--red-dim)",
@@ -141,7 +128,7 @@ export default function LoginPage() {
             <button
               className="btn-primary"
               onClick={handleLogin}
-              disabled={loading || !pharmacistId || !password}
+              disabled={loading || !pharmacistId.trim()}
               style={{ marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
             >
               {loading ? (
@@ -155,26 +142,10 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {/* Demo credentials */}
+          {/* Demo credentials removed — use real /api/login with your practitioner ID */}
           <div style={{ marginTop: 24, padding: 14, background: "var(--bg)", borderRadius: 6, border: "1px solid var(--border)" }}>
-            <div className="section-label" style={{ marginBottom: 8 }}>DEMO CREDENTIALS</div>
-            {state.pharmacists.map(p => (
-              <button
-                key={p.id}
-                onClick={() => { setPharmacistId(p.id); setPassword("password123"); }}
-                style={{
-                  display: "block", width: "100%", textAlign: "left",
-                  background: "none", border: "none", cursor: "pointer",
-                  padding: "4px 0", color: "var(--text-dim)", fontSize: 12,
-                  transition: "color 0.2s"
-                }}
-                onMouseEnter={e => (e.currentTarget.style.color = "var(--green)")}
-                onMouseLeave={e => (e.currentTarget.style.color = "var(--text-dim)")}
-              >
-                <span style={{ color: "var(--green)", marginRight: 8 }}>{p.id}</span>
-                {p.name} — {p.id}
-              </button>
-            ))}
+            <div className="section-label" style={{ marginBottom: 8 }}>LOGIN</div>
+            <div style={{ fontSize: 12, color: "var(--text-faint)" }}>Enter your practitioner ID only (e.g. PANS2024). No password required.</div>
           </div>
         </div>
 

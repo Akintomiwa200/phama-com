@@ -1,26 +1,41 @@
-import { NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
+import { NextRequest } from "next/server";
+import { getDb, isMongoConfigured } from "@/lib/mongodb";
 
-export async function POST(req: Request) {
+export const dynamic = "force-dynamic";
+
+export async function POST(request: NextRequest) {
+  if (!isMongoConfigured()) {
+    return Response.json({ error: "Database unavailable" }, { status: 503 });
+  }
+
+  let body: { id?: string };
   try {
-    const { id } = await req.json();
-    if (!id || typeof id !== "string") {
-      return NextResponse.json({ error: "Missing pharmacist ID" }, { status: 400 });
-    }
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid request" }, { status: 400 });
+  }
 
+  const id = body.id?.trim().toUpperCase();
+  if (!id) {
+    return Response.json({ error: "Practitioner ID required" }, { status: 400 });
+  }
+
+  try {
     const db = await getDb();
-    const pharmacist = await db.collection("pharmacists").findOne({ id: id.trim() });
+    const pharmacist = await db.collection("pharmacists").findOne({ id });
 
     if (!pharmacist || !pharmacist.authorized) {
-      return NextResponse.json({ error: "Invalid or unauthorized ID" }, { status: 401 });
+      return Response.json({ error: "Unknown practitioner ID or access denied." }, { status: 401 });
     }
 
-    return NextResponse.json({
+    return Response.json({
       id: pharmacist.id,
       name: pharmacist.name,
-      role: pharmacist.licenseNumber && pharmacist.licenseNumber !== "INVALID" ? "Pharmacist" : "Staff",
+      role: "Senior Pharmacist",
+      licenseNumber: pharmacist.licenseNumber,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Login failed";
+    return Response.json({ error: message }, { status: 500 });
   }
 }

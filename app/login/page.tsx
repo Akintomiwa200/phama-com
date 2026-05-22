@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { TEAL, NAVY } from "@/components/Icon";
 import DotGrid from "@/components/ui/DotGrid";
@@ -11,8 +11,14 @@ import { useApp } from "@/lib/store";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { dispatch } = useApp();
+  const { dispatch, state, sessionReady } = useApp();
   const [id, setId] = useState("");
+
+  useEffect(() => {
+    if (sessionReady && state.pharmacist) {
+      router.replace("/dashboard");
+    }
+  }, [sessionReady, state.pharmacist, router]);
   const [status, setStatus] = useState<"idle" | "checking" | "success" | "error">("idle");
   const [pharmacistName, setPharmacistName] = useState("");
 
@@ -35,7 +41,15 @@ export default function LoginPage() {
       const pharmacist = await res.json();
       setStatus("success");
       setPharmacistName(pharmacist.name);
-      dispatch({ type: "LOGIN", pharmacist });
+      dispatch({
+        type: "LOGIN",
+        pharmacist: {
+          id: pharmacist.id,
+          name: pharmacist.name,
+          role: pharmacist.role ?? "Senior Pharmacist",
+          licenseNumber: pharmacist.licenseNumber,
+        },
+      });
 
       setTimeout(() => {
         router.push("/dashboard");

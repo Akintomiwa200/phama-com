@@ -1,6 +1,7 @@
 "use client";
 
 import { useApp, useAudit, type AppStep } from "@/lib/store";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -21,6 +22,7 @@ import {
 
 export default function Dashboard() {
   const { state, dispatch } = useApp();
+  const router = useRouter();
   const addAudit = useAudit();
 
   const [time, setTime] = useState<Date | null>(null);
@@ -61,11 +63,29 @@ export default function Dashboard() {
     [state.drugInteractions]
   );
 
+  const getPathFromStep = (step: AppStep): string => {
+    const mapping: Record<string, string> = {
+      dashboard: "/dashboard",
+      "prescription-queue": "/dashboard/prescription-queue",
+      "patient-review": "/dashboard/patient-review",
+      "interaction-check": "/dashboard/interaction-check",
+      "cascade-check": "/dashboard/cascade-check",
+      "scan-verify": "/dashboard/scan-verify",
+      preparation: "/dashboard/preparation",
+      "label-generate": "/dashboard/label-generate",
+      "audit-log": "/dashboard/audit-log",
+      complete: "/dashboard/complete",
+      inventory: "/dashboard/inventory",
+      reports: "/dashboard/reports",
+      settings: "/dashboard/settings",
+      profile: "/dashboard/profile",
+      help: "/dashboard/help",
+    };
+    return mapping[step] || "/dashboard";
+  };
+
   const navigate = (step: AppStep) => {
-    dispatch({
-      type: "SET_STEP",
-      step,
-    });
+    router.push(getPathFromStep(step));
   };
 
   const stats = [

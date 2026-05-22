@@ -82,11 +82,11 @@ export interface AuditEntry {
 }
 
 export interface PrescriptionItem {
-  rxId: string; patientId: string; patientName: string;
+  rxId: string; patientId: string;
   drug: string; strength: string; quantity: number;
   frequency: string; route: string;
-  prescriber: string; ward: string;
-  priority: string; status: string; time: string;
+  prescriber: string; priority: string; status: string; time: string;
+  patientName?: string; ward?: string;
 }
 
 export interface InventoryItem {

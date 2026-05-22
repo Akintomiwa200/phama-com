@@ -1,10 +1,12 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useApp, useAudit, syncMutation } from "@/lib/store";
 import type { InventoryItem } from "@/types";
 import { ScanLine, CheckCircle, XCircle, AlertTriangle, ChevronRight, Barcode, RotateCcw } from "lucide-react";
 
 export default function ScanVerify() {
+  const router = useRouter();
   const { state, dispatch } = useApp();
   const addAudit = useAudit();
   const [barcode, setBarcode] = useState("");
@@ -16,6 +18,12 @@ export default function ScanVerify() {
 
   const rx = state.activePrescription;
 
+  useEffect(() => {
+    if (!state.cascadeChecked) {
+      router.replace("/dashboard/cascade-check");
+    }
+  }, [state.cascadeChecked, router]);
+
   function addScanAttempt(attempt: { barcode: string; drug: string; strength: string; result: "error" | "success"; reason?: string }) {
     const timestamp = new Date().toTimeString().slice(0, 8);
     dispatch({ type: "ADD_SCAN", attempt: { ...attempt, timestamp } });
@@ -26,18 +34,50 @@ export default function ScanVerify() {
     }).catch(() => {});
   }
 
-  function handleScan() {
+  function normalizeDrug(name: string): string {
+    return name.replace(/[\/\-]/g, "").replace(/\s+\d.*$/, "").trim().toLowerCase();
+  }
+
+  async function handleScan() {
     if (!barcode.trim() || !rx) return;
     setResult("idle");
 
-    const item = state.inventory.find(d => d.barcode === barcode.trim());
+    let item = state.inventory.find(d => d.barcode === barcode.trim());
+
+    if (!item) {
+      try {
+        const res = await fetch("/api/verify-barcode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ barcode: barcode.trim() }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.found && data.source === "inventory") {
+            item = data.item as InventoryItem;
+          } else if (data.found && data.source === "drugs") {
+            item = {
+              barcode: data.item.barcode,
+              drug: data.item.name,
+              strength: data.item.strength,
+              form: data.item.form,
+              stock: data.item.stock ?? 0,
+              expiry: data.item.expiry ?? "N/A",
+              batch: data.item.batch ?? "N/A",
+            } as InventoryItem;
+          }
+        }
+      } catch {
+        // fallback: use local state
+      }
+    }
 
     if (!item) {
       setResult("error");
       setErrorMsg("Barcode not found in system. Drug not registered.");
       addAudit("SCAN_FAILED", `Unknown barcode: ${barcode}`, "error");
       addScanAttempt({ barcode, drug: "UNKNOWN", strength: "UNKNOWN", result: "error", reason: "Barcode not in database" });
-    } else if (item.drug.split(" ")[0] !== rx.drug.split(" ")[0]) {
+    } else if (normalizeDrug(item.drug) !== normalizeDrug(rx.drug)) {
       setResult("error");
       setErrorMsg(`WRONG DRUG. Scanned: ${item.drug} ${item.strength}. Prescribed: ${rx.drug} ${rx.strength}. Do not dispense.`);
       setScannedItem(item);
@@ -77,7 +117,7 @@ export default function ScanVerify() {
   return (
     <div style={{ padding: 32, maxWidth: 900 }}>
       <div style={{ marginBottom: 28 }}>
-        <div className="section-label" style={{ marginBottom: 4 }}>STEP 6 — BARCODE VERIFICATION</div>
+        <div className="section-label" style={{ marginBottom: 4 }}>BARCODE VERIFICATION</div>
         <h1 className="display-font" style={{ fontSize: 26, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.02em" }}>
           Scan & Verify Drug
         </h1>
@@ -225,7 +265,7 @@ export default function ScanVerify() {
           className="btn-primary"
           onClick={() => {
             addAudit("SCAN_VERIFIED", "Drug verified and approved for dispensing", "success");
-            dispatch({ type: "SET_STEP", step: "preparation" });
+            router.push("/dashboard/preparation");
           }}
           style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 8 }}
         >

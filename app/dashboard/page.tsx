@@ -1,20 +1,5 @@
 "use client";
-import { useApp } from "@/lib/store";
-import DashboardHome from "@/components/Dashboard";
-import PrescriptionQueue from "@/components/PrescriptionQueue";
-import PatientPage from "@/components/PatientPage";
-import InteractionCheck from "@/components/InteractionCheck";
-import CascadeCheck from "@/components/CascadeCheck";
-import ScanVerify from "@/components/ScanVerify";
-import Preparation from "@/components/Preparation";
-import LabelGenerate from "@/components/LabelGenerate";
-import AuditLog from "@/components/AuditLog";
-import {
-  CompleteScreen,
-  Inventory,
-  Reports,
-  SettingsPage,
-} from "@/components/ExtraPages";
+import Dashboard from "@/components/Dashboard";
 
 const styles = `
   .section-label {
@@ -155,67 +140,11 @@ const styles = `
   }
 `;
 
-function DashboardContent() {
-  const { state } = useApp();
-
-  const renderStep = () => {
-    switch (state.step) {
-      case "dashboard":
-        return <DashboardHome />;
-      case "prescription-queue":
-        return <PrescriptionQueue />;
-      case "patient-review":
-        return <PatientPage />;
-      case "interaction-check":
-        return <InteractionCheck />;
-      case "cascade-check":
-        return <CascadeCheck />;
-      case "scan-verify":
-        return <ScanVerify />;
-      case "preparation":
-        return <Preparation />;
-      case "label-generate":
-        return <LabelGenerate />;
-      case "audit-log":
-        return <AuditLog />;
-      case "complete":
-        return <CompleteScreen />;
-      case "inventory":
-        return <Inventory />;
-      case "reports":
-        return <Reports />;
-      case "settings":
-        return <SettingsPage />;
-      default:
-        return <DashboardHome />;
-    }
-  };
-
-  return (
-    <div
-      style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}
-    >
-
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          minWidth: 0,
-        }}
-      >
-
-        <div style={{ flex: 1, overflowY: "auto" }}>{renderStep()}</div>
-      </div>
-    </div>
-  );
-}
-
 export default function DashboardPage() {
   return (
     <>
       <style>{styles}</style>
-      <DashboardContent />
+      <Dashboard />
     </>
   );
 }

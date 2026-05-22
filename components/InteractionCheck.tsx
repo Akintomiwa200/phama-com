@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useApp, useAudit, syncMutation } from "@/lib/store";
 
 import { AlertTriangle, CheckCircle, Activity, ChevronRight, BookOpen, Phone } from "lucide-react";
 
 export default function InteractionCheck() {
+  const router = useRouter();
   const { state, dispatch } = useApp();
   const addAudit = useAudit();
   const [found, setFound] = useState<typeof state.drugInteractions>([]);
@@ -19,16 +21,17 @@ export default function InteractionCheck() {
     if (!patient || !rx) return;
     const allMeds = patient.currentMedications.map(m => m.drug);
     const newDrug = rx.drug;
-    const interactions = state.drugInteractions.filter(i =>
-      (i.drug1 === newDrug && allMeds.includes(i.drug2)) ||
-      (i.drug2 === newDrug && allMeds.includes(i.drug1))
+    const matchDrug = (a: string, b: string) =>
+      a.toLowerCase() === b.toLowerCase() ||
+      a.toLowerCase().includes(b.toLowerCase()) ||
+      b.toLowerCase().includes(a.toLowerCase());
+
+    const interactions = state.drugInteractions.filter(
+      (i) =>
+        (matchDrug(i.drug1, newDrug) && allMeds.some((m) => matchDrug(m, i.drug2))) ||
+        (matchDrug(i.drug2, newDrug) && allMeds.some((m) => matchDrug(m, i.drug1)))
     );
     setFound(interactions);
-    syncMutation("audit_log", "insertOne", {
-      time: new Date().toISOString(), action: "INTERACTION_CHECK",
-      details: interactions.length > 0 ? `${interactions.length} interaction(s) found for ${newDrug}` : `No interactions found for ${newDrug}`,
-      level: interactions.length > 0 ? "warning" : "success", user: state.pharmacist?.name
-    }).catch(() => {});
     if (interactions.length > 0) {
       addAudit("INTERACTION_DETECTED", `${interactions.length} interaction(s) found for ${newDrug}`, "warning");
       setLoadingAI(true);
@@ -55,7 +58,7 @@ export default function InteractionCheck() {
       time: new Date().toISOString(), action: "INTERACTION_ACKNOWLEDGED",
       details: "Pharmacist acknowledged interaction alerts", level: "warning", user: state.pharmacist?.name
     }).catch(() => {});
-    dispatch({ type: "SET_STEP", step: "cascade-check" });
+    router.push("/dashboard/cascade-check");
   }
 
   const severityColor = (s: string) => {
@@ -73,7 +76,7 @@ export default function InteractionCheck() {
   return (
     <div style={{ padding: 32, maxWidth: 900 }}>
       <div style={{ marginBottom: 28 }}>
-        <div className="section-label" style={{ marginBottom: 4 }}>STEP 4 — AI SAFETY CHECK</div>
+        <div className="section-label" style={{ marginBottom: 4 }}>DRUG INTERACTIONS</div>
         <h1 className="display-font" style={{ fontSize: 26, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.02em" }}>
           Drug Interaction Analysis
         </h1>

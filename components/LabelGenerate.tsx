@@ -1,9 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useApp, useAudit } from "@/lib/store";
 import { FileText, Printer, CheckCircle, ChevronRight, QrCode, AlertCircle } from "lucide-react";
 
 export default function LabelGenerate() {
+  const router = useRouter();
   const { state, dispatch } = useApp();
   const addAudit = useAudit();
   const [generating, setGenerating] = useState(false);
@@ -55,7 +57,7 @@ export default function LabelGenerate() {
   return (
     <div style={{ padding: 32, maxWidth: 900 }}>
       <div style={{ marginBottom: 28 }}>
-        <div className="section-label" style={{ marginBottom: 4 }}>STEP 8 — LABEL GENERATION</div>
+        <div className="section-label" style={{ marginBottom: 4 }}>LABEL GENERATION</div>
         <h1 className="display-font" style={{ fontSize: 26, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.02em" }}>
           Generate & Print Label
         </h1>
@@ -212,7 +214,7 @@ export default function LabelGenerate() {
           className="btn-primary"
           onClick={() => {
             addAudit("LABEL_AFFIXED", "Label affixed to medication packaging", "success");
-            dispatch({ type: "SET_STEP", step: "audit-log" });
+            router.push("/dashboard/audit-log");
           }}
           style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 8 }}
         >

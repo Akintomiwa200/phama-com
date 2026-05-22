@@ -1,145 +1,223 @@
 "use client";
-import { useApp } from "@/lib/store";
-import { AppStep } from "@/lib/store";
-import {
-  LayoutDashboard, ListOrdered, User, AlertTriangle, GitBranch,
-  ScanLine, FlaskConical, FileText, ClipboardList, CheckCircle2,
-  Package, BarChart2, Settings, LogOut, Shield, ChevronLeft, ChevronRight
-} from "lucide-react";
 
-const NAV_ITEMS: { step: AppStep; label: string; icon: any; group?: string }[] = [
-  { step: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "MAIN" },
-  { step: "prescription-queue", label: "Rx Queue", icon: ListOrdered, group: "MAIN" },
-  { step: "inventory", label: "Inventory", icon: Package, group: "MAIN" },
-  { step: "patient-review", label: "Patient Review", icon: User, group: "WORKFLOW" },
-  { step: "interaction-check", label: "Interactions", icon: AlertTriangle, group: "WORKFLOW" },
-  { step: "cascade-check", label: "Cascade Check", icon: GitBranch, group: "WORKFLOW" },
-  { step: "scan-verify", label: "Scan & Verify", icon: ScanLine, group: "WORKFLOW" },
-  { step: "preparation", label: "Preparation", icon: FlaskConical, group: "WORKFLOW" },
-  { step: "label-generate", label: "Label Print", icon: FileText, group: "WORKFLOW" },
-  { step: "audit-log", label: "Audit Log", icon: ClipboardList, group: "RECORDS" },
-  { step: "reports", label: "Reports", icon: BarChart2, group: "RECORDS" },
-  { step: "settings", label: "Settings", icon: Settings, group: "SYSTEM" },
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useApp } from "@/lib/store";
+import {
+  LayoutDashboard,
+  ClipboardList,
+  Users,
+  Package,
+  FileText,
+  AlertTriangle,
+  GitBranch,
+  ScanLine,
+  FlaskConical,
+  Printer,
+  BarChart3,
+  Settings,
+  UserCircle,
+  HelpCircle,
+  LogOut,
+  ChevronLeft,
+  Shield,
+  CheckCircle2,
+} from "lucide-react";
+import { toast } from "react-hot-toast";
+import { getStepFromPath, WORKFLOW_ORDER } from "@/lib/workflow-nav";
+
+interface SidebarProps {
+  collapsed?: boolean;
+  onToggle?: () => void;
+  isMobile?: boolean;
+  onClose?: () => void;
+}
+
+interface NavItem {
+  path: string;
+  label: string;
+  icon: React.FC<{ size?: number; className?: string }>;
+  group?: string;
+  badge?: number;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "MAIN" },
+  { path: "/dashboard/prescription-queue", label: "Rx Queue", icon: ClipboardList, group: "MAIN" },
+  { path: "/dashboard/inventory", label: "Inventory", icon: Package, group: "MAIN" },
+  { path: "/dashboard/patient-review", label: "Patient Review", icon: Users, group: "WORKFLOW" },
+  { path: "/dashboard/interaction-check", label: "Interactions", icon: AlertTriangle, group: "WORKFLOW" },
+  { path: "/dashboard/cascade-check", label: "Cascade Check", icon: GitBranch, group: "WORKFLOW" },
+  { path: "/dashboard/scan-verify", label: "Scan & Verify", icon: ScanLine, group: "WORKFLOW" },
+  { path: "/dashboard/preparation", label: "Preparation", icon: FlaskConical, group: "WORKFLOW" },
+  { path: "/dashboard/label-generate", label: "Label Print", icon: Printer, group: "WORKFLOW" },
+  { path: "/dashboard/audit-log", label: "Audit Log", icon: FileText, group: "RECORDS" },
+  { path: "/dashboard/reports", label: "Reports", icon: BarChart3, group: "RECORDS" },
+  { path: "/dashboard/profile", label: "My Profile", icon: UserCircle, group: "SYSTEM" },
+  { path: "/dashboard/settings", label: "Settings", icon: Settings, group: "SYSTEM" },
+  { path: "/dashboard/help", label: "Help Center", icon: HelpCircle, group: "SYSTEM" },
 ];
+
+const GROUPS = ["MAIN", "WORKFLOW", "RECORDS", "SYSTEM"];
 
 export default function Sidebar({
   collapsed: collapsedProp,
   onToggle,
   isMobile,
   onClose,
-}: {
-  collapsed?: boolean;
-  onToggle?: () => void;
-  isMobile?: boolean;
-  onClose?: () => void;
-} = {}) {
+}: SidebarProps = {}) {
   const { state, dispatch } = useApp();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const collapsed = collapsedProp !== undefined ? collapsedProp : !state.sidebarOpen;
-
   const toggle = onToggle || (() => dispatch({ type: "TOGGLE_SIDEBAR" }));
 
-  const groups = ["MAIN", "WORKFLOW", "RECORDS", "SYSTEM"];
+  const currentStep = getStepFromPath(pathname);
+  const pendingRxCount = state.prescriptions.filter((p) => p.status === "PENDING").length;
 
-  function isActive(step: AppStep) {
-    return state.step === step;
+  function isActive(path: string) {
+    if (path === "/dashboard") {
+      return pathname === "/dashboard";
+    }
+    return pathname?.startsWith(path);
   }
 
-  function isCompleted(step: AppStep) {
-    const order: AppStep[] = [
-      "patient-review", "interaction-check", "cascade-check",
-      "scan-verify", "preparation", "label-generate", "audit-log"
-    ];
-    const currentIdx = order.indexOf(state.step);
-    const stepIdx = order.indexOf(step);
-    return stepIdx !== -1 && stepIdx < currentIdx;
+  function isCompleted(itemPath: string) {
+    const itemStep = getStepFromPath(itemPath);
+    if (!WORKFLOW_ORDER.includes(itemStep)) return false;
+    const currentIdx = WORKFLOW_ORDER.indexOf(currentStep as (typeof WORKFLOW_ORDER)[number]);
+    const stepIdx = WORKFLOW_ORDER.indexOf(itemStep as (typeof WORKFLOW_ORDER)[number]);
+    if (currentIdx === -1 || stepIdx === -1) return false;
+    return stepIdx < currentIdx;
   }
+
+  const handleLogout = () => {
+    dispatch({ type: "LOGOUT" });
+    toast.success("Logged out successfully");
+    router.push("/login");
+  };
+
+  const getUserInitials = () => {
+    const name = state.pharmacist?.name || "Pharmacist";
+    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+  };
+
+  const handleLinkClick = () => {
+    if (isMobile && onClose) {
+      onClose();
+    }
+  };
 
   return (
-    <aside style={{
-      width: !collapsed ? 220 : 64,
-      height: "100vh",
-      background: "var(--surface)",
-      borderRight: "1px solid var(--border)",
-      display: "flex",
-      flexDirection: "column",
-      transition: "width 0.3s ease",
-      position: "fixed",
-      top: 0,
-      left: 0,
-      zIndex: 40,
-    }}>
-      {/* Logo */}
-      <div style={{
-        padding: !collapsed ? "20px 16px" : "20px 16px",
-        borderBottom: "1px solid var(--border)",
-        display: "flex", alignItems: "center", gap: 10,
-        overflow: "hidden"
-      }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: 8,
-          background: "linear-gradient(135deg, var(--green) 0%, #00a855 100%)",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
-        }}>
-          <Shield size={16} color="#0a0f0d" />
-        </div>
-        {!collapsed && (
-          <div>
-            <div className="display-font" style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.02em" }}>
-              PharmaGuard
-            </div>
-            <div style={{ fontSize: 9, color: "var(--text-faint)", letterSpacing: "0.1em" }}>AI SYSTEM</div>
+    <aside
+      className={`fixed left-0 top-0 h-screen bg-gradient-to-b from-emerald-800 to-emerald-900 flex flex-col shadow-2xl z-50 transition-all duration-300 overflow-y-auto overflow-x-hidden ${
+        collapsed ? "w-20" : "w-64"
+      }`}
+    >
+      <div className="flex items-center justify-between h-16 px-4 border-b border-emerald-700/30">
+        <Link href="/dashboard" onClick={handleLinkClick} className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+            <Shield size={16} className="text-emerald-300" />
           </div>
-        )}
+          {!collapsed && (
+            <span className="text-white font-bold text-lg">PharmaGuard</span>
+          )}
+        </Link>
+        <button
+          onClick={toggle}
+          className={`p-1 rounded-full bg-white/10 hover:bg-white/20 transition-all ${
+            collapsed ? "hidden" : ""
+          }`}
+        >
+          <ChevronLeft size={14} className="text-white/70" />
+        </button>
       </div>
+{/* 
+      {state.pharmacist && !collapsed && (
+        <div className="px-4 py-4 border-b border-emerald-700/30">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold">
+              {getUserInitials()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-emerald-300 text-xs">Active Session</span>
+              </div>
+              <p className="text-white text-sm font-medium truncate mt-1">
+                {state.pharmacist.name}
+              </p>
+              <p className="text-emerald-200/60 text-xs">{state.pharmacist.role}</p>
+            </div>
+          </div>
+        </div>
+      )} */}
 
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: "12px 0", overflowY: "auto" }}>
-        {groups.map(group => {
-          const items = NAV_ITEMS.filter(n => n.group === group);
+      <nav className="flex-1 py-4 px-3 space-y-1">
+        {GROUPS.map((group) => {
+          const items = NAV_ITEMS.filter((n) => n.group === group);
+          if (items.length === 0) return null;
+
           return (
-            <div key={group} style={{ marginBottom: 4 }}>
+            <div key={group} className="mb-4">
               {!collapsed && (
-                <div className="section-label" style={{ padding: "8px 16px 4px" }}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/50 mb-2 px-3">
                   {group}
-                </div>
+                </p>
               )}
-              {items.map(item => {
+              {items.map((item) => {
                 const Icon = item.icon;
-                const active = isActive(item.step);
-                const done = isCompleted(item.step);
+                const active = isActive(item.path);
+                const done = isCompleted(item.path);
+                const badge =
+                  item.path === "/dashboard/prescription-queue" && pendingRxCount > 0
+                    ? pendingRxCount
+                    : item.badge;
+
                 return (
-                  <button
-                    key={item.step}
-                    onClick={() => dispatch({ type: "SET_STEP", step: item.step })}
-                    title={!!collapsed ? item.label : undefined}
-                    style={{
-                      width: "100%", display: "flex", alignItems: "center",
-                      gap: 10, padding: !collapsed ? "9px 16px" : "9px 16px",
-                      background: active ? "var(--green-glow)" : "none",
-                      border: "none", borderLeft: active ? "2px solid var(--green)" : "2px solid transparent",
-                      cursor: "pointer", textAlign: "left", transition: "all 0.15s",
-                      color: active ? "var(--green)" : done ? "var(--text-dim)" : "var(--text-faint)",
-                      overflow: "hidden",
-                    }}
-                    onMouseEnter={e => { if (!active) e.currentTarget.style.color = "var(--text)"; }}
-                    onMouseLeave={e => { if (!active) e.currentTarget.style.color = done ? "var(--text-dim)" : "var(--text-faint)"; }}
+                  <Link
+                    key={item.path}
+                    href={item.path}
+                    onClick={handleLinkClick}
+                    onMouseEnter={() => setHoveredItem(item.path)}
+                    onMouseLeave={() => setHoveredItem(null)}
+                    title={collapsed ? item.label : undefined}
+                    className={`flex items-center h-11 text-sm font-medium rounded-xl transition-all duration-200 ${
+                      collapsed ? "justify-center px-0" : "gap-3 px-3"
+                    } ${
+                      active
+                        ? "bg-white/15 text-white shadow-lg"
+                        : done
+                          ? "text-emerald-300/50 hover:bg-white/10 hover:text-emerald-200"
+                          : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                    }`}
                   >
-                    <div style={{ position: "relative", flexShrink: 0 }}>
-                      <Icon size={16} />
+                    <div className="relative">
+                      <Icon size={18} />
                       {done && (
-                        <CheckCircle2 size={10} style={{
-                          position: "absolute", bottom: -3, right: -3,
-                          color: "var(--green)", background: "var(--surface)"
-                        }} />
+                        <CheckCircle2
+                          size={10}
+                          className="absolute -bottom-1 -right-1 text-emerald-400 bg-emerald-900 rounded-full"
+                        />
+                      )}
+                      {badge && !collapsed && (
+                        <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-400 rounded-full animate-pulse" />
                       )}
                     </div>
                     {!collapsed && (
-                      <span style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {item.label}
-                      </span>
+                      <>
+                        <span className="flex-1 text-left truncate">{item.label}</span>
+                        {badge && (
+                          <span className="px-1.5 py-0.5 text-xs rounded-full bg-red-500/20 text-red-200">
+                            {badge}
+                          </span>
+                        )}
+                      </>
                     )}
-                  </button>
+                  </Link>
                 );
               })}
             </div>
@@ -147,57 +225,23 @@ export default function Sidebar({
         })}
       </nav>
 
-      {/* Pharmacist info */}
-      {state.pharmacist && (
-        <div style={{
-          padding: !collapsed ? "12px 16px" : "12px 12px",
-          borderTop: "1px solid var(--border)",
-        }}>
-          {!collapsed ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="status-dot green" />
-                <span style={{ fontSize: 12, color: "var(--green)" }}>Active Session</span>
-              </div>
-              <div style={{ fontSize: 12, color: "var(--text)", fontWeight: 500 }}>
-                {state.pharmacist.name}
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{state.pharmacist.role}</div>
-              <button
-                className="btn-ghost"
-                onClick={() => dispatch({ type: "LOGOUT" })}
-                style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 12 }}
-              >
-                <LogOut size={12} /> Logout
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => dispatch({ type: "LOGOUT" })}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-faint)", display: "block", width: "100%", textAlign: "center" }}
-              title="Logout"
-            >
-              <LogOut size={16} />
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Toggle button */}
-      {!isMobile && (
+      <div className="px-3 py-4 border-t border-emerald-700/30">
         <button
-          onClick={toggle}
-          style={{
-            position: "absolute", right: -12, top: 72,
-            width: 24, height: 24, borderRadius: "50%",
-            background: "var(--surface2)", border: "1px solid var(--border2)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: "var(--text-dim)", transition: "all 0.2s",
-            zIndex: 10
-          }}
+          onClick={handleLogout}
+          className={`flex items-center h-10 text-sm font-medium rounded-xl transition-all w-full ${
+            collapsed ? "justify-center" : "gap-3 px-3"
+          } text-red-200 hover:bg-red-500/20 hover:text-red-100`}
         >
-          {!collapsed ? <ChevronLeft size={12} /> : <ChevronRight size={12} />}
+          <LogOut size={collapsed ? 20 : 18} />
+          {!collapsed && <span>Logout</span>}
         </button>
+      </div>
+
+      {collapsed && hoveredItem && (
+        <div className="fixed left-20 ml-2 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-50 pointer-events-none shadow-lg">
+          {NAV_ITEMS.find((n) => n.path === hoveredItem)?.label}
+          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 border-4 border-transparent border-r-gray-900" />
+        </div>
       )}
     </aside>
   );

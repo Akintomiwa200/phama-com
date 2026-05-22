@@ -2,26 +2,43 @@ import type { AppState } from "./store";
 
 type Listener = (state: Partial<AppState>) => void;
 
-export function initLocalRealTimeUpdates(onUpdate: Listener): () => void {
-  let lastData: string | null = null;
+export function subscribeToRealtime(onUpdate: Listener): () => void {
+  let eventSource: EventSource | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
 
-  const poll = async () => {
-    try {
-      const res = await fetch("/api/sync");
-      if (!res.ok) return;
-      const data = await res.json();
-      const serialized = JSON.stringify(data);
-      if (serialized !== lastData) {
-        lastData = serialized;
+  function connect() {
+    if (closed) return;
+
+    eventSource = new EventSource("/api/realtime");
+
+    eventSource.addEventListener("sync", (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
         onUpdate(data);
+      } catch {
+        // malformed data
       }
-    } catch {
-      // silently fail — will retry on next interval
-    }
+    });
+
+    eventSource.addEventListener("error", () => {
+      eventSource?.close();
+
+      if (!closed) {
+        reconnectTimer = setTimeout(connect, 3000);
+      }
+    });
+
+    eventSource.onopen = () => {
+      // connected
+    };
+  }
+
+  connect();
+
+  return () => {
+    closed = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    eventSource?.close();
   };
-
-  poll();
-  const interval = setInterval(poll, 2000);
-
-  return () => clearInterval(interval);
 }

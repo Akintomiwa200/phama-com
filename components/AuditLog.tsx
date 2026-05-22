@@ -1,10 +1,14 @@
 "use client";
-import { useApp, useAudit } from "@/lib/store";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useApp, useAudit, useMutations } from "@/lib/store";
 import { ClipboardList, Download, CheckCircle, ChevronRight, Lock, AlertTriangle, Info, XCircle } from "lucide-react";
 
 export default function AuditLog() {
-  const { state, dispatch } = useApp();
+  const router = useRouter();
+  const { state } = useApp();
   const addAudit = useAudit();
+  const { completeDispensing } = useMutations();
 
   const icons = {
     info: <Info size={12} color="var(--blue)" />,
@@ -20,25 +24,25 @@ export default function AuditLog() {
     success: "var(--green)",
   };
 
-  function complete() {
-    addAudit("DISPENSING_COMPLETE", `${state.activePrescription?.drug} dispensed successfully to ${state.activePatient?.name}`, "success");
-    if (state.activePrescription) {
-      dispatch({
-        type: "COMPLETE_DISPENSING",
-        rxId: state.activePrescription.rxId,
-        quantity: state.activePrescription.quantity,
-        drug: state.activePrescription.drug
-      });
-    } else {
-      dispatch({ type: "SET_COMPLETE", value: true });
-      dispatch({ type: "SET_STEP", step: "complete" });
+  const [completing, setCompleting] = useState(false);
+  async function complete() {
+    if (completing) return;
+    setCompleting(true);
+    try {
+      if (state.activePrescription) {
+        const { rxId, quantity, drug } = state.activePrescription;
+        await completeDispensing(rxId, quantity, drug);
+        router.push("/dashboard/complete");
+      }
+    } finally {
+      setCompleting(false);
     }
   }
 
   return (
     <div style={{ padding: 32, maxWidth: 800 }}>
       <div style={{ marginBottom: 28 }}>
-        <div className="section-label" style={{ marginBottom: 4 }}>STEP 9 — AUDIT TRAIL</div>
+        <div className="section-label" style={{ marginBottom: 4 }}>AUDIT TRAIL</div>
         <h1 className="display-font" style={{ fontSize: 26, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.02em" }}>
           Immutable Audit Log
         </h1>
@@ -106,15 +110,15 @@ export default function AuditLog() {
                   [{entry.time}]
                 </div>
                 <div>
-                  <div style={{ fontSize: 12, color: colors[entry.level], fontWeight: 500, marginBottom: 2 }}>
+                  <div style={{ fontSize: 12, color: colors[entry.level as keyof typeof colors], fontWeight: 500, marginBottom: 2 }}>
                     {entry.action}
                   </div>
                   <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{entry.details}</div>
                   {entry.user && <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 2 }}>by: {entry.user}</div>}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  {icons[entry.level]}
-                  <span style={{ fontSize: 10, color: colors[entry.level], textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  {icons[entry.level as keyof typeof icons]}
+                  <span style={{ fontSize: 10, color: colors[entry.level as keyof typeof colors], textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {entry.level}
                   </span>
                 </div>
@@ -142,9 +146,10 @@ export default function AuditLog() {
       <button
         className="btn-primary"
         onClick={complete}
+        disabled={completing}
         style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 8 }}
       >
-        Complete Dispensing <ChevronRight size={14} />
+        {completing ? "Saving…" : "Complete Dispensing"} <ChevronRight size={14} />
       </button>
     </div>
   );

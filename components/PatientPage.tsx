@@ -1,258 +1,231 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, User, Heart, Pill, AlertTriangle, Activity, ChevronRight,
   Calendar, MapPin, Droplets, Thermometer, Weight, Ruler, Syringe,
   Stethoscope, ClipboardList, Clock, ArrowLeft, Shield, Eye,
-  FileText, BadgeAlert, FlaskConical, Bone,
+  FileText, BadgeAlert, FlaskConical, Bone, Plus, Edit, Trash2,
+  Save, X, Filter, RefreshCw, Download, Printer, Bell, MessageSquare,
+  Phone, Mail, Video, Camera, Upload, Link, Star, Award, TrendingUp,
+  Users, BarChart3, PieChart, LineChart, Settings, HelpCircle, LogOut
 } from "lucide-react";
-
+import { useRouter } from "next/navigation";
 import { useApp, useAudit } from "@/lib/store";
-import type { Patient } from "@/types";
+import { toast } from "react-hot-toast";
+import type { Patient as StorePatient } from "@/types";
 
-type Tab = "overview" | "medications" | "lab-reports" | "history";
+// Enriched types for display
+interface Vitals {
+  bp: string;
+  hr: number;
+  temp: number;
+  spo2: number;
+  weight: number;
+  height: number;
+  bmi: number;
+  date: string;
+}
 
-const CONDITION_COLORS: Record<string, string> = {
-  hypertension: "rose",
-  diabetes: "amber",
-  hyperlipidaemia: "blue",
-  kidney: "purple",
-  anaemia: "red",
-  asthma: "sky",
-  thyroid: "teal",
-  allergy: "fuchsia",
-  heart: "rose",
-  dementia: "slate",
-  fracture: "orange",
-  infection: "lime",
-  malaria: "emerald",
-  pregnancy: "pink",
+interface Medication {
+  id: string;
+  drug: string;
+  dose: string;
+  frequency: string;
+  route: string;
+  since: string;
+  endDate?: string;
+  prescribedBy: string;
+  instructions?: string;
+}
+
+interface LabReport {
+  id: string;
+  test: string;
+  result: string;
+  referenceRange: string;
+  status: "normal" | "abnormal" | "critical";
+  date: string;
+  orderedBy: string;
+  notes?: string;
+}
+
+interface MedicalRecord {
+  id: string;
+  event: string;
+  details: string;
+  date: string;
+  type: "admission" | "surgery" | "diagnosis" | "visit" | "vaccination" | "procedure";
+  provider: string;
+  location?: string;
+}
+
+interface Allergy {
+  id: string;
+  allergen: string;
+  reaction: string;
+  severity: "mild" | "moderate" | "severe";
+  diagnosedDate: string;
+  notes?: string;
+}
+
+interface Condition {
+  id: string;
+  name: string;
+  diagnosedDate: string;
+  status: "active" | "resolved" | "chronic";
+  notes?: string;
+}
+
+interface EnrichedPatient {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+  bloodType: string;
+  height: number;
+  ward: string;
+  bed: string;
+  phone?: string;
+  email?: string;
+  emergencyContact?: { name: string; phone: string; relation: string };
+  conditions: Condition[];
+  allergies: Allergy[];
+  currentMedications: Medication[];
+  prescriptionHistory: Medication[];
+  labReports: LabReport[];
+  medicalHistory: MedicalRecord[];
+  recentVitals: Vitals;
+  vitalHistory: Vitals[];
+  nextAppointment?: string;
+  primaryPhysician?: string;
+  insuranceProvider?: string;
+  insuranceNumber?: string;
+  createdAt?: string;
+  lastUpdated?: string;
+}
+
+let condId = 0;
+let allergId = 0;
+let medId = 0;
+let labId = 0;
+let recId = 0;
+
+function enrichPatient(p: StorePatient): EnrichedPatient {
+  const bmi = p.recentVitals.weight && p.height
+    ? Number((p.recentVitals.weight / ((p.height / 100) * (p.height / 100))).toFixed(1))
+    : 0;
+
+  return {
+    id: p.id,
+    name: p.name,
+    age: p.age,
+    gender: p.gender,
+    bloodType: p.bloodType,
+    height: p.height,
+    ward: p.ward,
+    bed: p.bed,
+    conditions: (p.conditions ?? []).map(c => ({ id: `c${++condId}`, name: c, diagnosedDate: "", status: "active" as const })),
+    allergies: (p.allergies ?? []).map(a => ({ id: `a${++allergId}`, allergen: a, reaction: "Unknown", severity: "moderate" as const, diagnosedDate: "" })),
+    currentMedications: (p.currentMedications ?? []).map(m => ({ id: `m${++medId}`, ...m, prescribedBy: "Unknown", endDate: undefined, instructions: undefined })),
+    prescriptionHistory: (p.prescriptionHistory ?? []).map(m => ({ id: `ph${++medId}`, drug: m.drug, dose: m.dose, frequency: m.frequency, route: "Oral", since: m.date, prescribedBy: m.prescriber || "Unknown", endDate: undefined, instructions: undefined })),
+    labReports: (p.labReports ?? []).map(l => ({ id: `l${++labId}`, test: l.test, result: l.result, referenceRange: l.referenceRange, status: l.status, date: l.date, orderedBy: "Unknown", notes: undefined })),
+    medicalHistory: (p.medicalHistory ?? []).map(h => ({ id: `h${++recId}`, event: h.event, details: h.details, date: h.date, type: h.type as MedicalRecord["type"], provider: "Unknown", location: undefined })),
+    recentVitals: { ...p.recentVitals, height: p.height, bmi },
+    vitalHistory: [],
+  };
+}
+
+// Helper functions
+const getSeverityColor = (severity: string) => {
+  switch (severity) {
+    case "severe": return "text-red-600 bg-red-50 border-red-200";
+    case "moderate": return "text-amber-600 bg-amber-50 border-amber-200";
+    default: return "text-emerald-600 bg-emerald-50 border-emerald-200";
+  }
 };
 
-function getConditionColor(condition: string): string {
-  const key = Object.keys(CONDITION_COLORS).find((k) =>
-    condition.toLowerCase().includes(k)
-  );
-  if (!key) return "gray";
-  const color = CONDITION_COLORS[key];
-  const map: Record<string, { bg: string; text: string; dot: string }> = {
-    rose:    { bg: "bg-rose-50",  text: "text-rose-700",  dot: "bg-rose-500" },
-    amber:   { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
-    blue:    { bg: "bg-blue-50",  text: "text-blue-700",  dot: "bg-blue-500" },
-    purple:  { bg: "bg-purple-50",text: "text-purple-700",dot: "bg-purple-500" },
-    red:     { bg: "bg-red-50",   text: "text-red-700",   dot: "bg-red-500" },
-    sky:     { bg: "bg-sky-50",   text: "text-sky-700",   dot: "bg-sky-500" },
-    teal:    { bg: "bg-teal-50",  text: "text-teal-700",  dot: "bg-teal-500" },
-    fuchsia: { bg: "bg-fuchsia-50",text: "text-fuchsia-700",dot: "bg-fuchsia-500" },
-    slate:   { bg: "bg-slate-50", text: "text-slate-700", dot: "bg-slate-500" },
-    orange:  { bg: "bg-orange-50",text: "text-orange-700",dot: "bg-orange-500" },
-    lime:    { bg: "bg-lime-50",  text: "text-lime-700",  dot: "bg-lime-500" },
-    emerald: { bg: "bg-emerald-50",text: "text-emerald-700",dot: "bg-emerald-500" },
-    pink:    { bg: "bg-pink-50",  text: "text-pink-700",  dot: "bg-pink-500" },
-  };
-  return `${map[color]?.bg || "bg-gray-50"} ${map[color]?.text || "text-gray-700"}`;
-}
-
-function getConditionDot(condition: string): string {
-  const key = Object.keys(CONDITION_COLORS).find((k) =>
-    condition.toLowerCase().includes(k)
-  );
-  if (!key) return "bg-gray-400";
-  const map: Record<string, string> = {
-    rose: "bg-rose-500", amber: "bg-amber-500", blue: "bg-blue-500",
-    purple: "bg-purple-500", red: "bg-red-500", sky: "bg-sky-500",
-    teal: "bg-teal-500", fuchsia: "bg-fuchsia-500", slate: "bg-slate-500",
-    orange: "bg-orange-500", lime: "bg-lime-500", emerald: "bg-emerald-500",
-    pink: "bg-pink-500",
-  };
-  return map[key] || "bg-gray-400";
-}
-
-function getSeverityColor(status: string) {
+const getStatusColor = (status: string) => {
   switch (status) {
     case "critical": return "text-red-600 bg-red-50 border-red-200";
     case "abnormal": return "text-amber-600 bg-amber-50 border-amber-200";
     default: return "text-emerald-600 bg-emerald-50 border-emerald-200";
   }
-}
+};
 
-function getAllergyColor(allergy: string) {
-  const severeAllergens = ["Penicillin", "Morphine", "Aspirin"];
-  if (severeAllergens.some((a) => allergy.toLowerCase().includes(a.toLowerCase())))
-    return "text-red-600 bg-red-50 border-red-200";
-  return "text-amber-600 bg-amber-50 border-amber-200";
-}
+const getInitials = (name: string) => {
+  return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+};
 
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
+const VitalsCard = ({ vitals }: { vitals: Vitals }) => {
+  const isAbnormal = (label: string, value: any) => {
+    if (label === "BP") {
+      const [sys, dia] = value.split("/").map(Number);
+      return sys > 140 || dia > 90;
+    }
+    if (label === "HR") return value < 60 || value > 100;
+    if (label === "Temp") return value < 36 || value > 37.5;
+    if (label === "SpO2") return value < 95;
+    return false;
+  };
 
-function getAgeGroup(age: number): string {
-  if (age >= 65) return "Elderly";
-  if (age >= 40) return "Adult";
-  if (age >= 18) return "Young Adult";
-  return "Minor";
-}
-
-function VitalsGauge({ label, value, unit, icon: Icon, color, normalRange }: {
-  label: string; value: string | number; unit: string; icon: any; color: string; normalRange: string;
-}) {
-  const val = typeof value === "string" ? parseInt(value.split("/")[0]) : value;
-  const isAbnormal = label === "BP" ? (value as string).split("/")[0] > "140" || (value as string).split("/")[1] > "90"
-    : label === "HR" ? (val < 60 || val > 100)
-    : label === "Temp" ? (val < 36 || val > 37.5)
-    : label === "SpO2" ? val < 95
-    : false;
+  const vitalsData = [
+    { label: "BP", value: vitals.bp, unit: "mmHg", icon: Heart, normalRange: "120/80" },
+    { label: "HR", value: vitals.hr, unit: "bpm", icon: Activity, normalRange: "60-100" },
+    { label: "Temp", value: vitals.temp, unit: "°C", icon: Thermometer, normalRange: "36-37.5" },
+    { label: "SpO2", value: vitals.spo2, unit: "%", icon: Droplets, normalRange: "95-100" },
+  ];
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
-      <div className="flex items-center gap-2 text-[11px] font-medium text-gray-400 mb-2">
-        <Icon size={13} />
-        {label}
-      </div>
-      <div className="flex items-baseline gap-1">
-        <span className={`text-xl font-bold ${isAbnormal ? "text-amber-600" : "text-gray-900"}`}>
-          {value}
-        </span>
-        <span className="text-[11px] text-gray-400">{unit}</span>
-      </div>
-      <div className="mt-1 flex items-center gap-1.5">
-        <div className={`h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden`}>
-          <div
-            className={`h-full rounded-full transition-all ${isAbnormal ? "bg-amber-400" : "bg-emerald-400"}`}
-            style={{ width: `${Math.min(100, (val / 200) * 100)}%` }}
-          />
-        </div>
-        {isAbnormal && <AlertTriangle size={10} className="text-amber-500 shrink-0" />}
-      </div>
-      <div className="mt-1 text-[9px] text-gray-400">{normalRange}</div>
+    <div className="grid grid-cols-2 gap-3">
+      {vitalsData.map((item) => {
+        const Icon = item.icon;
+        const abnormal = isAbnormal(item.label, item.value);
+        return (
+          <div key={item.label} className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+            <div className="flex items-center gap-2 text-[11px] font-medium text-gray-400 mb-2">
+              <Icon size={13} /> {item.label}
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className={`text-xl font-bold ${abnormal ? "text-amber-600" : "text-gray-900"}`}>
+                {item.value}
+              </span>
+              <span className="text-[11px] text-gray-400">{item.unit}</span>
+            </div>
+            <div className="mt-1 flex items-center gap-1.5">
+              <div className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${abnormal ? "bg-amber-400" : "bg-emerald-400"}`}
+                  style={{ width: `${Math.min(100, (typeof item.value === "number" ? item.value / 200 : 70) * 100)}%` }} />
+              </div>
+              {abnormal && <AlertTriangle size={10} className="text-amber-500 shrink-0" />}
+            </div>
+            <div className="mt-1 text-[9px] text-gray-400">{item.normalRange}</div>
+          </div>
+        );
+      })}
     </div>
   );
-}
-
-function PatientCard({ patient, onSelect }: { patient: Patient; onSelect: (p: Patient) => void }) {
-  const initials = getInitials(patient.name);
-  const ageGroup = getAgeGroup(patient.age);
-  const hasAllergies = patient.allergies.length > 0;
-  const urgentConditions = patient.conditions.filter((c) =>
-    c.toLowerCase().includes("critical") || c.toLowerCase().includes("failure") || c.toLowerCase().includes("severe")
-  );
-
-  return (
-    <motion.button
-      layout
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      onClick={() => onSelect(patient)}
-      className="group relative w-full rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition-all hover:border-emerald-300 hover:shadow-md"
-    >
-      {hasAllergies && (
-        <div className="absolute right-3 top-3 rounded-full bg-red-50 px-2 py-0.5 text-[9px] font-semibold text-red-600 border border-red-200">
-          ALLERGIES
-        </div>
-      )}
-      {urgentConditions.length > 0 && (
-        <div className="absolute right-3 top-10 mt-1">
-          <BadgeAlert size={14} className="text-red-400" />
-        </div>
-      )}
-
-      <div className="flex items-center gap-3.5">
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-bold text-sm text-white ${
-          hasAllergies ? "bg-gradient-to-br from-rose-400 to-rose-600" : "bg-gradient-to-br from-emerald-400 to-emerald-600"
-        }`}>
-          {initials}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-bold text-gray-900">{patient.name}</span>
-            <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
-              {patient.id}
-            </span>
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-500">
-            <span>{patient.age} yrs · {patient.gender === "F" ? "Female" : "Male"}</span>
-            <span className="flex items-center gap-1">
-              <MapPin size={10} /> {patient.ward}
-            </span>
-          </div>
-        </div>
-        <ChevronRight size={16} className="shrink-0 text-gray-300 group-hover:text-emerald-500 transition-colors" />
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {patient.conditions.slice(0, 3).map((c, i) => (
-          <span key={i} className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${getConditionColor(c)}`}>
-            {c.length > 28 ? c.slice(0, 26) + "..." : c}
-          </span>
-        ))}
-        {patient.conditions.length > 3 && (
-          <span className="rounded-md bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-400">
-            +{patient.conditions.length - 3}
-          </span>
-        )}
-      </div>
-
-      <div className="mt-3 flex items-center justify-between border-t border-gray-50 pt-3 text-[10px] text-gray-400">
-        <span className="flex items-center gap-1">
-          <Pill size={10} /> {patient.currentMedications.length} meds
-        </span>
-        <span className="flex items-center gap-1">
-          <Activity size={10} /> {patient.recentVitals.bp}
-        </span>
-        <span className="flex items-center gap-1">
-          {ageGroup}
-        </span>
-      </div>
-    </motion.button>
-  );
-}
+};
 
 export default function PatientPage() {
+  const router = useRouter();
   const { state, dispatch } = useApp();
   const addAudit = useAudit();
+
+  const patients = useMemo(() => Object.values(state.patients).map(enrichPatient), [state.patients]);
   const [search, setSearch] = useState("");
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [selectedPatient, setSelectedPatient] = useState<EnrichedPatient | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "medications" | "labs" | "history">("overview");
   const [filterWard, setFilterWard] = useState<string>("ALL");
 
-  const allPatients = useMemo(() => Object.values(state.patients), [state.patients]);
-
-  const wards = useMemo(() => {
-    const w = new Set(allPatients.map((p) => p.ward));
-    return Array.from(w).sort();
-  }, [allPatients]);
-
-  const filtered = useMemo(() => {
-    let result = allPatients;
-    if (search) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.id.toLowerCase().includes(q) ||
-          p.conditions.some((c) => c.toLowerCase().includes(q)) ||
-          p.allergies.some((a) => a.toLowerCase().includes(q)) ||
-          p.currentMedications.some((m) => m.drug.toLowerCase().includes(q))
-      );
-    }
-    if (filterWard !== "ALL") {
-      result = result.filter((p) => p.ward === filterWard);
-    }
-    return result;
-  }, [allPatients, search, filterWard]);
-
-  const handleSelect = (patient: Patient) => {
+  const handleSelectPatient = (patient: EnrichedPatient) => {
     setSelectedPatient(patient);
-    dispatch({ type: "SET_PATIENT", patient });
-    addAudit("PATIENT_VIEWED", `Comprehensive patient profile viewed: ${patient.name}`, "info");
+    const storePatient = state.patients[patient.id];
+    if (storePatient) {
+      dispatch({ type: "SET_PATIENT", patient: storePatient });
+    }
+    addAudit("PATIENT_VIEWED", `Viewed patient profile: ${patient.name}`, "info");
   };
 
   const handleBack = () => {
@@ -261,529 +234,475 @@ export default function PatientPage() {
 
   const handleProceed = () => {
     if (!selectedPatient) return;
-    dispatch({ type: "SET_STEP", step: "interaction-check" });
+    if (!state.activePrescription) {
+      toast.error("Select a prescription from the Rx Queue first");
+      router.push("/dashboard/prescription-queue");
+      return;
+    }
+    router.push("/dashboard/interaction-check");
   };
+
+  useEffect(() => {
+    if (state.activePatient) {
+      setSelectedPatient(enrichPatient(state.activePatient));
+    }
+  }, [state.activePatient?.id]);
+
+  useEffect(() => {
+    if (selectedPatient && state.patients[selectedPatient.id]) {
+      setSelectedPatient(enrichPatient(state.patients[selectedPatient.id]));
+    }
+  }, [state.patients, selectedPatient?.id]);
+
+  const wards = useMemo(() => {
+    const w = new Set(patients.map(p => p.ward));
+    return Array.from(w).sort();
+  }, [patients]);
+
+  const filteredPatients = useMemo(() => {
+    let result = patients;
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        p.conditions.some(c => c.name.toLowerCase().includes(q)) ||
+        p.allergies.some(a => a.allergen.toLowerCase().includes(q))
+      );
+    }
+    if (filterWard !== "ALL") {
+      result = result.filter(p => p.ward === filterWard);
+    }
+    return result;
+  }, [patients, search, filterWard]);
 
   if (selectedPatient) {
     const p = selectedPatient;
-    const initials = getInitials(p.name);
-
     return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleBack}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition"
-            >
-              <ArrowLeft size={16} />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Patient Profile</span>
-                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">{p.id}</span>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Header */}
+          <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleBack}
+                className="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                <ArrowLeft size={18} />
+              </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Patient Profile</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">{p.id}</span>
+                </div>
+                <h1 className="text-2xl font-bold text-gray-900 mt-1">{p.name}</h1>
               </div>
-              <h1 className="text-xl font-bold text-gray-900 mt-0.5">{p.name}</h1>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              {state.activePrescription && (
+                <p className="text-xs text-gray-500">
+                  Active Rx:{" "}
+                  <span className="font-semibold text-emerald-700">
+                    {state.activePrescription.drug} {state.activePrescription.strength}
+                  </span>{" "}
+                  ({state.activePrescription.rxId})
+                </p>
+              )}
+              <button
+                onClick={handleProceed}
+                disabled={!state.activePrescription}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Proceed to Interaction Check <ChevronRight size={16} />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleBack}
-              className="flex h-9 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
-            >
-              <ArrowLeft size={13} /> Back to list
-            </button>
-            <button
-              onClick={handleProceed}
-              className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700 transition"
-            >
-              Proceed to Interaction Check <ChevronRight size={13} />
-            </button>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* LEFT COLUMN - Patient Identity + Vitals */}
-          <div className="xl:col-span-1 space-y-5">
-            {/* Identity Card */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center gap-4 mb-5">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-xl font-bold text-white shadow-sm">
-                  {initials}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-lg font-bold text-gray-900">{p.name}</div>
-                  <div className="mt-0.5 text-sm text-gray-500">
-                    {p.age} years · {p.gender === "F" ? "Female" : "Male"} · {p.bloodType}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Patient Info */}
+            <div className="space-y-5">
+              {/* Identity Card */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-xl font-bold shadow-sm">
+                    {getInitials(p.name)}
                   </div>
-                  <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
-                    <MapPin size={11} /> {p.ward} · Bed {p.bed}
+                  <div>
+                    <div className="text-lg font-bold text-gray-900">{p.name}</div>
+                    <div className="text-sm text-gray-500">{p.age} years · {p.gender === "M" ? "Male" : p.gender === "F" ? "Female" : "Other"} · {p.bloodType}</div>
+                    <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
+                      <MapPin size={11} /> {p.ward} · Bed {p.bed}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { icon: User, label: "Patient ID", value: p.id },
-                  { icon: Ruler, label: "Height", value: `${p.height} cm` },
-                  { icon: Droplets, label: "Blood Type", value: p.bloodType },
-                  { icon: Weight, label: "Weight", value: `${p.recentVitals.weight} kg` },
-                ].map((item, i) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={i} className="rounded-xl bg-gray-50 p-3">
-                      <div className="flex items-center gap-1.5 text-[10px] font-medium text-gray-400 mb-1">
-                        <Icon size={11} /> {item.label}
+              {/* Vitals */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Activity size={14} className="text-emerald-500" />
+                  <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Recent Vitals</span>
+                  <span className="ml-auto text-[10px] text-gray-400">{p.recentVitals.date}</span>
+                </div>
+                <VitalsCard vitals={p.recentVitals} />
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">BMI</span>
+                    <span className="font-medium text-gray-900">{p.recentVitals.bmi}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-gray-500">Weight</span>
+                    <span className="font-medium text-gray-900">{p.recentVitals.weight} kg</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-gray-500">Height</span>
+                    <span className="font-medium text-gray-900">{p.recentVitals.height} cm</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Allergies */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertTriangle size={14} className="text-red-500" />
+                  <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Allergies</span>
+                </div>
+                {p.allergies.length > 0 ? (
+                  <div className="space-y-2">
+                    {p.allergies.map(a => (
+                      <div key={a.id} className={`rounded-lg border p-3 ${getSeverityColor(a.severity)}`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-medium">{a.allergen}</div>
+                            <div className="text-xs mt-0.5">Reaction: {a.reaction}</div>
+                          </div>
+                          <span className="text-xs font-medium uppercase">{a.severity}</span>
+                        </div>
                       </div>
-                      <div className="text-sm font-semibold text-gray-900">{item.value}</div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-emerald-50 rounded-xl px-4 py-3 text-center text-sm font-medium text-emerald-600">
+                    No known allergies ✓
+                  </div>
+                )}
+              </div>
+
+              {/* Conditions */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Stethoscope size={14} className="text-gray-500" />
+                  <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Conditions</span>
+                </div>
+                <div className="space-y-2">
+                  {p.conditions.map(c => (
+                    <div key={c.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                      <div>
+                        <div className="font-medium text-gray-900">{c.name}</div>
+                        {c.diagnosedDate && <div className="text-xs text-gray-500">Diagnosed: {c.diagnosedDate}</div>}
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${c.status === "active" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>
+                        {c.status}
+                      </span>
                     </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Tabs */}
+            <div className="lg:col-span-2 space-y-5">
+              {/* Tabs */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-1 flex gap-1">
+                {[
+                  { id: "overview" as const, label: "Overview", icon: Eye },
+                  { id: "medications" as const, label: "Medications", icon: Pill },
+                  { id: "labs" as const, label: "Lab Reports", icon: FlaskConical },
+                  { id: "history" as const, label: "History", icon: ClipboardList },
+                ].map(tab => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                        activeTab === tab.id ? "bg-emerald-50 text-emerald-700" : "text-gray-500 hover:bg-gray-50"
+                      }`}
+                    >
+                      <Icon size={16} />
+                      {tab.label}
+                    </button>
                   );
                 })}
               </div>
-            </div>
 
-            {/* Vitals */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <Activity size={14} className="text-emerald-500" />
-                <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Recent Vitals</span>
-                <span className="ml-auto text-[10px] text-gray-400">{p.recentVitals.date}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                <VitalsGauge label="BP" value={p.recentVitals.bp} unit="mmHg" icon={Heart} color="rose" normalRange="120/80" />
-                <VitalsGauge label="HR" value={p.recentVitals.hr} unit="bpm" icon={Activity} color="emerald" normalRange="60-100" />
-                <VitalsGauge label="Temp" value={p.recentVitals.temp} unit="°C" icon={Thermometer} color="amber" normalRange="36-37.5" />
-                <VitalsGauge label="SpO2" value={p.recentVitals.spo2} unit="%" icon={Droplets} color="blue" normalRange="95-100" />
-              </div>
-            </div>
-
-            {/* Allergies */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle size={14} className="text-red-500" />
-                <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Allergies</span>
-                <span className="ml-auto text-[10px] text-gray-400">{p.allergies.length} known</span>
-              </div>
-              {p.allergies.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {p.allergies.map((a, i) => (
-                    <span key={i} className={`rounded-lg border px-3 py-1 text-xs font-semibold ${getAllergyColor(a)}`}>
-                      {a}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-600">
-                  No known allergies ✓
-                </div>
-              )}
-            </div>
-
-            {/* Conditions */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <Stethoscope size={14} className="text-gray-500" />
-                <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Conditions</span>
-                <span className="ml-auto text-[10px] text-gray-400">{p.conditions.length} diagnosed</span>
-              </div>
-              <div className="space-y-2">
-                {p.conditions.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2.5">
-                    <div className={`h-2 w-2 rounded-full shrink-0 ${getConditionDot(c)}`} />
-                    <span className="text-sm text-gray-700">{c}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN - Tabs content */}
-          <div className="xl:col-span-2 space-y-5">
-            {/* Tabs */}
-            <div className="flex gap-1 rounded-xl bg-gray-100 p-1">
-              {[
-                { id: "overview" as Tab, label: "Overview", icon: Eye },
-                { id: "medications" as Tab, label: "Medications", icon: Pill },
-                { id: "lab-reports" as Tab, label: "Lab Reports", icon: FlaskConical },
-                { id: "history" as Tab, label: "Medical History", icon: ClipboardList },
-              ].map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition ${
-                      isActive ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    <Icon size={13} />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.15 }}
-              >
-                {/* OVERVIEW TAB */}
-                {activeTab === "overview" && (
-                  <div className="space-y-5">
-                    {/* Current Medications Summary */}
-                    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <Pill size={14} className="text-blue-500" />
-                          <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Current Medications</span>
-                        </div>
-                        <span className="text-[10px] text-gray-400">{p.currentMedications.length} active</span>
-                      </div>
-                      <div className="space-y-2.5">
-                        {p.currentMedications.slice(0, 4).map((med, i) => (
-                          <div key={i} className="flex items-center gap-3 rounded-xl bg-gray-50 p-3">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100">
-                              <Pill size={13} className="text-blue-600" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-semibold text-gray-900">{med.drug} {med.dose}</div>
-                              <div className="mt-0.5 text-xs text-gray-500">{med.frequency} · {med.route}</div>
-                            </div>
-                            <span className="shrink-0 text-[10px] text-gray-400">Since {med.since}</span>
-                          </div>
-                        ))}
-                        {p.currentMedications.length > 4 && (
-                          <button
-                            onClick={() => setActiveTab("medications")}
-                            className="w-full rounded-xl border border-dashed border-gray-200 py-2.5 text-xs font-medium text-gray-500 hover:border-gray-300 transition"
-                          >
-                            View all {p.currentMedications.length} medications
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Recent Lab Reports Summary */}
-                    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <FlaskConical size={14} className="text-purple-500" />
-                          <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Recent Lab Results</span>
-                        </div>
-                        <button
-                          onClick={() => setActiveTab("lab-reports")}
-                          className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700"
-                        >
-                          View all →
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {p.labReports.slice(0, 3).map((lab, i) => (
-                          <div key={i} className="flex items-center justify-between rounded-lg border border-gray-100 px-3.5 py-2.5">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-gray-900">{lab.test}</div>
-                              <div className="text-xs text-gray-500">{lab.date}</div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm font-semibold text-gray-900">{lab.result}</div>
-                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${getSeverityColor(lab.status)}`}>
-                                {lab.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Quick Medical History Summary */}
-                    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <ClipboardList size={14} className="text-gray-500" />
-                          <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Recent History</span>
-                        </div>
-                        <button
-                          onClick={() => setActiveTab("history")}
-                          className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700"
-                        >
-                          View all →
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {p.medicalHistory.slice(0, 2).map((rec, i) => {
-                          const typeColors: Record<string, string> = {
-                            admission: "text-red-600 bg-red-50 border-red-200",
-                            surgery: "text-purple-600 bg-purple-50 border-purple-200",
-                            diagnosis: "text-blue-600 bg-blue-50 border-blue-200",
-                            visit: "text-gray-600 bg-gray-50 border-gray-200",
-                            vaccination: "text-emerald-600 bg-emerald-50 border-emerald-200",
-                          };
-                          return (
-                            <div key={i} className="flex items-start gap-3 rounded-lg border border-gray-100 px-3.5 py-3">
-                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-100">
-                                <Calendar size={12} className="text-gray-500" />
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6"
+                >
+                  {/* Overview Tab */}
+                  {activeTab === "overview" && (
+                    <div className="space-y-6">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 mb-3">Current Medications</h3>
+                        <div className="space-y-2">
+                          {p.currentMedications.slice(0, 3).map(med => (
+                            <div key={med.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                                <Pill size={14} className="text-blue-600" />
                               </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium text-gray-900">{rec.event}</span>
-                                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${typeColors[rec.type] || "text-gray-600 bg-gray-50 border-gray-200"}`}>
-                                    {rec.type.toUpperCase()}
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 text-xs text-gray-500">{rec.details}</div>
-                                <div className="mt-0.5 text-[10px] text-gray-400">{rec.date}</div>
+                              <div className="flex-1">
+                                <div className="font-medium text-gray-900">{med.drug} {med.dose}</div>
+                                <div className="text-xs text-gray-500">{med.frequency} · {med.route}</div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* MEDICATIONS TAB */}
-                {activeTab === "medications" && (
-                  <div className="space-y-5">
-                    {/* Current Medications */}
-                    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Pill size={14} className="text-blue-500" />
-                        <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-                          Current Medications ({p.currentMedications.length})
-                        </span>
-                      </div>
-                      <div className="overflow-hidden rounded-xl border border-gray-100">
-                        <div className="grid grid-cols-6 gap-3 bg-gray-50 px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                          <span className="col-span-2">Drug</span>
-                          <span>Dose</span>
-                          <span>Frequency</span>
-                          <span>Route</span>
-                          <span>Since</span>
-                        </div>
-                        {p.currentMedications.map((med, i) => (
-                          <div key={i} className={`grid grid-cols-6 gap-3 px-4 py-3 text-sm ${
-                            i < p.currentMedications.length - 1 ? "border-b border-gray-50" : ""
-                          }`}>
-                            <span className="col-span-2 font-medium text-gray-900">{med.drug}</span>
-                            <span className="text-gray-700">{med.dose}</span>
-                            <span className="text-gray-600">{med.frequency}</span>
-                            <span className="text-gray-600">{med.route}</span>
-                            <span className="text-gray-400">{med.since}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Medication History */}
-                    {p.prescriptionHistory.length > 0 && (
-                      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Clock size={14} className="text-gray-500" />
-                          <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-                            Prescription History ({p.prescriptionHistory.length})
-                          </span>
-                        </div>
-                        <div className="overflow-hidden rounded-xl border border-gray-100">
-                          <div className="grid grid-cols-7 gap-3 bg-gray-50 px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                            <span className="col-span-2">Drug</span>
-                            <span>Dose</span>
-                            <span>Frequency</span>
-                            <span>Duration</span>
-                            <span>Status</span>
-                            <span>Date</span>
-                          </div>
-                          {p.prescriptionHistory.map((rx, i) => (
-                            <div key={i} className={`grid grid-cols-7 gap-3 px-4 py-3 text-sm ${
-                              i < p.prescriptionHistory.length - 1 ? "border-b border-gray-50" : ""
-                            }`}>
-                              <span className="col-span-2 font-medium text-gray-900">{rx.drug}</span>
-                              <span className="text-gray-700">{rx.dose}</span>
-                              <span className="text-gray-600 text-xs">{rx.frequency}</span>
-                              <span className="text-gray-600 text-xs">{rx.duration}</span>
-                              <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded self-start ${
-                                rx.status === "active" ? "bg-emerald-50 text-emerald-600" :
-                                rx.status === "completed" ? "bg-blue-50 text-blue-600" :
-                                "bg-gray-50 text-gray-500"
-                              }`}>
-                                {rx.status}
-                              </span>
-                              <span className="text-gray-400 text-xs">{rx.date}</span>
+                              <span className="text-xs text-gray-400">Since {med.since}</span>
                             </div>
                           ))}
                         </div>
                       </div>
-                    )}
-                  </div>
-                )}
 
-                {/* LAB REPORTS TAB */}
-                {activeTab === "lab-reports" && (
-                  <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <div className="flex items-center gap-2 mb-4">
-                      <FlaskConical size={14} className="text-purple-500" />
-                      <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-                        Laboratory Reports ({p.labReports.length})
-                      </span>
-                    </div>
-                    <div className="overflow-hidden rounded-xl border border-gray-100">
-                      <div className="grid grid-cols-5 gap-3 bg-gray-50 px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                        <span className="col-span-2">Test</span>
-                        <span>Result</span>
-                        <span>Reference</span>
-                        <span>Status</span>
-                      </div>
-                      {p.labReports.map((lab, i) => (
-                        <div key={i} className={`grid grid-cols-5 gap-3 px-4 py-3 text-sm ${
-                          i < p.labReports.length - 1 ? "border-b border-gray-50" : ""
-                        }`}>
-                          <div className="col-span-2">
-                            <div className="font-medium text-gray-900">{lab.test}</div>
-                            <div className="text-[10px] text-gray-400">{lab.date}</div>
-                          </div>
-                          <span className="font-semibold text-gray-900 self-center">{lab.result}</span>
-                          <span className="text-xs text-gray-500 self-center">{lab.referenceRange}</span>
-                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded border self-center text-center ${getSeverityColor(lab.status)}`}>
-                            {lab.status}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* MEDICAL HISTORY TAB */}
-                {activeTab === "history" && (
-                  <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <div className="flex items-center gap-2 mb-5">
-                      <ClipboardList size={14} className="text-gray-500" />
-                      <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-                        Medical History ({p.medicalHistory.length} records)
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-100" />
-                      <div className="space-y-6">
-                        {p.medicalHistory.map((rec, i) => {
-                          const typeColors: Record<string, string> = {
-                            admission: "text-red-600 bg-red-50 border-red-200",
-                            surgery: "text-purple-600 bg-purple-50 border-purple-200",
-                            diagnosis: "text-blue-600 bg-blue-50 border-blue-200",
-                            visit: "text-gray-600 bg-gray-50 border-gray-200",
-                            vaccination: "text-emerald-600 bg-emerald-50 border-emerald-200",
-                          };
-                          const typeIcons: Record<string, any> = {
-                            admission: Bone,
-                            surgery: Syringe,
-                            diagnosis: Stethoscope,
-                            visit: User,
-                            vaccination: Shield,
-                          };
-                          const Icon = typeIcons[rec.type] || Calendar;
-                          return (
-                            <div key={i} className="relative pl-10">
-                              <div className={`absolute left-2.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white ${
-                                rec.type === "admission" ? "bg-red-500" :
-                                rec.type === "surgery" ? "bg-purple-500" :
-                                rec.type === "diagnosis" ? "bg-blue-500" :
-                                "bg-gray-400"
-                              }`} />
-                              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Icon size={13} className={
-                                    rec.type === "admission" ? "text-red-500" :
-                                    rec.type === "surgery" ? "text-purple-500" :
-                                    rec.type === "diagnosis" ? "text-blue-500" :
-                                    "text-gray-500"
-                                  } />
-                                  <span className="text-sm font-semibold text-gray-900">{rec.event}</span>
-                                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ml-auto ${typeColors[rec.type] || "text-gray-600 bg-gray-50 border-gray-200"}`}>
-                                    {rec.type.toUpperCase()}
-                                  </span>
-                                </div>
-                                <p className="mt-1 text-xs text-gray-600 leading-relaxed">{rec.details}</p>
-                                <div className="mt-1.5 text-[10px] text-gray-400">{rec.date}</div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 mb-3">Recent Lab Results</h3>
+                        <div className="space-y-2">
+                          {p.labReports.slice(0, 2).map(lab => (
+                            <div key={lab.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                              <div>
+                                <div className="font-medium text-gray-900">{lab.test}</div>
+                                <div className="text-xs text-gray-500">{lab.date}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-semibold">{lab.result}</div>
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(lab.status)}`}>
+                                  {lab.status}
+                                </span>
                               </div>
                             </div>
-                          );
-                        })}
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 mb-3">Medical History</h3>
+                        <div className="space-y-2">
+                          {p.medicalHistory.slice(0, 2).map(rec => (
+                            <div key={rec.id} className="p-3 bg-gray-50 rounded-xl">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Calendar size={12} className="text-gray-400" />
+                                <span className="font-medium text-gray-900">{rec.event}</span>
+                                <span className="text-xs text-gray-400 ml-auto">{rec.date}</span>
+                              </div>
+                              <p className="text-sm text-gray-600">{rec.details}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
+                  )}
+
+                  {/* Medications Tab */}
+                  {activeTab === "medications" && (
+                    <div>
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-sm font-semibold text-gray-900">Current Medications ({p.currentMedications.length})</h3>
+                      </div>
+                      <div className="overflow-hidden rounded-xl border border-gray-100">
+                        <table className="min-w-full divide-y divide-gray-100">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Drug</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Dose</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Frequency</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Route</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Since</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {p.currentMedications.map(med => (
+                              <tr key={med.id} className="hover:bg-gray-50/50">
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{med.drug}</td>
+                                <td className="px-4 py-3 text-sm text-gray-700">{med.dose}</td>
+                                <td className="px-4 py-3 text-sm text-gray-600">{med.frequency}</td>
+                                <td className="px-4 py-3 text-sm text-gray-600">{med.route}</td>
+                                <td className="px-4 py-3 text-sm text-gray-400">{med.since}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lab Reports Tab */}
+                  {activeTab === "labs" && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4">Laboratory Reports ({p.labReports.length})</h3>
+                      <div className="space-y-3">
+                        {p.labReports.map(lab => (
+                          <div key={lab.id} className="p-4 bg-gray-50 rounded-xl">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <div className="font-semibold text-gray-900">{lab.test}</div>
+                                <div className="text-xs text-gray-500">{lab.date} · Ordered by {lab.orderedBy}</div>
+                              </div>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(lab.status)}`}>
+                                {lab.status}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mt-3">
+                              <div>
+                                <div className="text-xs text-gray-500">Result</div>
+                                <div className="text-sm font-medium text-gray-900">{lab.result}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-gray-500">Reference Range</div>
+                                <div className="text-sm text-gray-700">{lab.referenceRange}</div>
+                              </div>
+                            </div>
+                            {lab.notes && <p className="text-xs text-gray-500 mt-2">{lab.notes}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* History Tab */}
+                  {activeTab === "history" && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4">Medical History ({p.medicalHistory.length})</h3>
+                      <div className="relative pl-6 space-y-5">
+                        <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-gray-200" />
+                        {p.medicalHistory.map(rec => (
+                          <div key={rec.id} className="relative">
+                            <div className="absolute -left-6 top-1.5 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white" />
+                            <div className="p-4 bg-gray-50 rounded-xl">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold text-gray-900">{rec.event}</span>
+                                <span className="text-xs text-gray-400">{rec.date}</span>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">{rec.details}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
+  // Patient List View
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">Step 3</span>
-        <h1 className="text-2xl font-bold text-gray-900 mt-0.5">Patient Review</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Search and review comprehensive patient profiles before dispensing
-        </p>
-      </div>
-
-      {/* Search & Filters */}
-      <div className="mb-6 space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              type="text"
-              placeholder="Search by name, ID, condition, allergy, or medication..."
-              className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-            />
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Patient Review</h1>
+            <p className="text-sm text-gray-500 mt-1">Search and review comprehensive patient profiles</p>
           </div>
-          <select
-            value={filterWard}
-            onChange={(e) => setFilterWard(e.target.value)}
-            className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-          >
-            <option value="ALL">All Wards</option>
-            {wards.map((w) => (
-              <option key={w} value={w}>{w}</option>
-            ))}
-          </select>
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <span className="font-medium text-gray-500">{filtered.length} patients</span>
-          {search && <span>· matching &ldquo;{search}&rdquo;</span>}
-          {filterWard !== "ALL" && <span>· in {filterWard}</span>}
-        </div>
-      </div>
 
-      {/* Patient Grid */}
-      {filtered.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((patient) => (
-            <PatientCard
-              key={patient.id}
-              patient={patient}
-              onSelect={handleSelect}
-            />
-          ))}
+        {/* Search & Filters */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                type="text"
+                placeholder="Search by name, ID, condition, or allergy..."
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+            <select
+              value={filterWard}
+              onChange={(e) => setFilterWard(e.target.value)}
+              className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+            >
+              <option value="ALL">All Wards</option>
+              {wards.map(w => <option key={w} value={w}>{w}</option>)}
+            </select>
+          </div>
         </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-20">
-          <Search size={36} className="text-gray-200 mb-4" />
-          <div className="text-sm font-medium text-gray-500">No patients found</div>
-          <div className="mt-1 text-xs text-gray-400">Try adjusting your search or filter</div>
-        </div>
-      )}
+
+        {/* Patient Grid */}
+        {!state.dbConnected && patients.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+            <RefreshCw size={40} className="text-emerald-500 mx-auto mb-4 animate-spin" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Loading patients…</h3>
+            <p className="text-gray-500">Syncing from pharmacy database</p>
+          </div>
+        ) : filteredPatients.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+            <Search size={48} className="text-gray-200 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No patients found</h3>
+            <p className="text-gray-500">
+              {patients.length === 0
+                ? "No patients in database. Run pnpm seed after starting MongoDB."
+                : "Try adjusting your search or filter criteria"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredPatients.map((patient, idx) => (
+              <motion.div
+                key={patient.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                onClick={() => handleSelectPatient(patient)}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 cursor-pointer hover:shadow-md transition-all group"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold text-lg">
+                      {getInitials(patient.name)}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 group-hover:text-emerald-600 transition-colors">{patient.name}</h3>
+                      <p className="text-xs text-gray-500">{patient.age} yrs · {patient.gender === "M" ? "Male" : "Female"}</p>
+                    </div>
+                  </div>
+                  {patient.allergies.length > 0 && (
+                    <AlertTriangle size={14} className="text-amber-500" />
+                  )}
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+                  <MapPin size={10} /> {patient.ward} · Bed {patient.bed}
+                  <span className="ml-auto">{patient.id}</span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {patient.conditions.slice(0, 2).map(c => (
+                    <span key={c.id} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
+                      {c.name}
+                    </span>
+                  ))}
+                  {patient.conditions.length > 2 && (
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-400 text-xs rounded-full">
+                      +{patient.conditions.length - 2}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-xs">
+                  <span>{patient.currentMedications.length} medications</span>
+                  <span>{patient.labReports.length} lab reports</span>
+                  <ChevronRight size={14} className="text-gray-300 group-hover:text-emerald-500 transition-colors" />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

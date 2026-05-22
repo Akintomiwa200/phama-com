@@ -19,8 +19,9 @@ import {
   Wifi,
 } from "lucide-react";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/lib/store";
+import { getStepFromPath, STEP_LABELS } from "@/lib/workflow-nav";
 
 interface TopBarProps {
   onMenuClick?: () => void;
@@ -35,25 +36,11 @@ interface Notification {
   read: boolean;
 }
 
-const STEP_LABELS: Record<string, string> = {
-  dashboard: "Dashboard",
-  "prescription-queue": "Prescription Queue",
-  "patient-review": "Patient Review",
-  "interaction-check": "Interaction Check",
-  "cascade-check": "Cascade Check",
-  "scan-verify": "Scan & Verify",
-  preparation: "Preparation",
-  "label-generate": "Label Generation",
-  "audit-log": "Audit Log",
-  complete: "Complete",
-  inventory: "Inventory",
-  reports: "Reports",
-  settings: "Settings",
-};
-
 export default function TopBar({ onMenuClick }: TopBarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { state, dispatch } = useApp();
+  const pageTitle = STEP_LABELS[getStepFromPath(pathname)] || "Dashboard";
 
   const [darkMode, setDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -181,7 +168,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
               />
 
               <span className="truncate text-sm font-semibold text-gray-800">
-                {STEP_LABELS[state.step] || "Dashboard"}
+                {pageTitle}
               </span>
             </div>
 
@@ -313,11 +300,11 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
                             const alert = state.alerts.find((a) => a.id === notif.id);
                             if (alert) {
                               if (alert.type === "interaction") {
-                                dispatch({ type: "SET_STEP", step: "interaction-check" });
+                                router.push("/dashboard/interaction-check");
                               } else if (alert.type === "cascade") {
-                                dispatch({ type: "SET_STEP", step: "cascade-check" });
+                                router.push("/dashboard/cascade-check");
                               } else if (alert.type === "scan-error" || alert.type === "scan-success") {
-                                dispatch({ type: "SET_STEP", step: "scan-verify" });
+                                router.push("/dashboard/scan-verify");
                               }
                             }
                           }
@@ -411,22 +398,24 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
                       {
                         icon: User,
                         label: "Profile",
-                        action: () =>
-                          router.push("/dashboard/profile"),
+                        action: () => {
+                          setShowUserMenu(false);
+                          router.push("/dashboard/profile");
+                        },
                       },
                       {
                         icon: Settings,
                         label: "Settings",
                         action: () =>
-                          dispatch({
-                            type: "SET_STEP",
-                            step: "settings",
-                          }),
+                          router.push("/dashboard/settings"),
                       },
                       {
                         icon: HelpCircle,
                         label: "Help Center",
-                        action: () => {},
+                        action: () => {
+                          setShowUserMenu(false);
+                          router.push("/dashboard/help");
+                        },
                       },
                     ].map((item, idx) => {
                       const Icon = item.icon;
